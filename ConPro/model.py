@@ -216,8 +216,11 @@ class ConPro(mesa.Model):
         tasks_sequence=None,
         palstering_worker_skills=None,
         painting_worker_skills=None,
-        one_behavior_file=True
+        one_behavior_file=True,
+        dwwz=None
     ):
+        if dwwz is None:
+            dwwz = list()
         if palstering_worker_skills is None:
             palstering_worker_skills = {"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100}
 
@@ -240,12 +243,14 @@ class ConPro(mesa.Model):
             drywalls_points=[
                 # [[3,118],[19,118], "dry_wall5"],
                 # [[19,119],[19,127], "dry_wall5"],
-                # [[11, 11], [2, 11], "dry_wall4"],
-                # [[12, 10], [15, 10], "dry_wall1"],
+                [[11, 11], [2, 11], "dry_wall4"],
+                [[12, 10], [15, 10], "dry_wall1"],
                 #  [[43,33],[43,38], "dry_wall7"]
                 [[2, 23], [12, 23], "dry_wall3"],
                 [[12, 11], [12, 22], "dry_wall3"]]
         # self.trades_tasks = trades_tasks
+        self.dwwz = dwwz # drywall_working_zones
+        print ("self.dwwz", self.dwwz)
         self.painting_worker_skills = painting_worker_skills
         self.palstering_worker_skills = palstering_worker_skills
         self.behavior_files = behavior_files
@@ -576,12 +581,12 @@ class ConPro(mesa.Model):
         df = df.set_index('task_name')
         cols = filter_cols(df, filter_key="KEY")
         for name, points in drywalls_lines.items():
-
             for index, point in enumerate(points):
                 zone = df.loc[name, "zone"].lower()
                 zone_pos = self.zones_agents[zone][0].pos
                 tasks={key: {} for key in cols}
                 for phase in cols:
+                    print(self.dwwz, "lksjdflksdfj")
                     tasks[phase]["amount"] = df.loc[name, phase]
                     tasks[phase]["start_date"] = df.loc[name, "start_date"]
                     tasks[phase]["end_date"] = df.loc[name, "end_date"]
@@ -600,6 +605,7 @@ class ConPro(mesa.Model):
                     tasks[phase]["constraints"] = set()
                     self.task_id += 1
                 if index == 0:#create only one grid for drywall other grids are dummy drywalls (copy the state of the drywall)
+
                     drywall = Drywall(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone, hasStarted=False, current_workers=set())
                     self.add_agent(drywall, drywall.pos)
                     # self.update_xymap(drywall.pos, value=0)
@@ -617,6 +623,9 @@ class ConPro(mesa.Model):
                     self.zones_agents[name] = self.zones_agents.get(name, [])
                     self.zones_agents[name].append(zone)
                     self.number_of_drywalls += 1
+                    self.dwwz.append(parent_zone.name)
+                    parent_zone.working_zone = True
+                    print (self.dwwz, "self.dwwz")
                 else:
                     dummy_drywall = DummyDrywall(self.agent_id, self, pos=point,  drywall=drywall, name=name)
                     self.add_agent(dummy_drywall, dummy_drywall.pos)
