@@ -277,7 +277,7 @@ def main(iterations=10, max_steps=30000, variable_params=Scenarios1, data_collec
 
 if __name__ == '__main__':
     # args = sys.argv[1:]
-    args = ["batch"]
+    args = ["runserver"]
 
     if args[0] == "runserver":
         server.launch()

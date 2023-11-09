@@ -158,8 +158,11 @@ class ConPro(mesa.Model):
     agents_attributes = {Worker: [ "FullfillingIntention", "trade", "intentionExpire", "utilization","t_at_workplace", "t_at_workplace", "IntentionStartTime", "IntentionFullfilmentTime", "total_intentions", "t_at_site","selected_task_key", "drywall_name", "is_idle" ], Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["n_visitors","n_workers","n_trades"]}#,   ]}#, Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["get_current_trades"]} # "is_idle",  # ,
     read_behavior_from_pickle = True
     pickle_file_path = "workers_behaviors_pickels/pickle.pkl"
-    perform_data_fitting = False # Change to true if scenario require fitting (finding pdf again)
+    perform_data_fitting = True # Change to true if scenario require fitting (finding pdf again)
     pdf_size = 10000
+    # end new
+    width = 132  # width of csv grid files
+    height = 40  # height of csv grid files,
     pdf_to_execlude = [
     'levy_stable', # always execlude this
     'studentized_range', # always execlude this
@@ -270,39 +273,14 @@ class ConPro(mesa.Model):
     # 'rel_breitwigner'
 ]
     resource_name = {
-        "A1": "plastering",
-        "A1 3rd delivery": "plastering",
-        "A1 and A2": "plastering",
-        "A2": "plastering",
-        "A2 3rd delivery": "plastering",
-        "АЗ": "plastering",
-        "A3 and A4": "plastering",
-        "A4": "plastering",
-        "A4 3rd delivery": "plastering",
-        "A5": "plastering",
-        "A6": "plastering",
-        "A6 3rd delivery": "plastering",
-        "A7": "plastering",
-        "A7 and A8": "painting",
-        "A8": "painting",
-        "A8 3rd delivery": "painting",
-        "bricklayer 1": "painting",
-        "bricklayer 2": "painting",
-        "carpenter 1": "painting",
-        "carpenter 2": "painting",
-        "foreman 1": "painting",
-        "foreman 2": "painting",
-        "General material": "painting",
-        "odd-job man": "painting",
-        "plasterer 1": "plastering",
-        "plasterer 2": "plastering",
-        "plasterer 3": "plastering",
-        "plumber 1": "plastering",
-        "plumber 2": "plastering"
+        "KALUSTE 2": "plastering",
+        "KALUSTE 1": "plastering",
+        "KALUSTE 3": "plastering"
     } #modify changing names in ips file
     gateways_zones = {0: 'Storage201', 32: 'A4', 33: "A4", 35: "Elevator",
                       36: "A7", 37: "A6", 38: "Storage204", 39: "A8", 40: "Corridor",
                       41: "A3", 42: "Staircase", 43: "A5"}
+
     project_directory = "ConPro/"
     x_init_worker = 10 # initial x coordinations of worker
     y_init_worker = 2 # initial y coordinations of worker
@@ -313,6 +291,8 @@ class ConPro(mesa.Model):
                     'KEYINSU': ["plastering"], 'KEYSTUD': ["painting"], 'KEYPAINTING': ["plastering"],
                     'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]} # modify
     colors = {"plastering": "green", "painting": "red"} # modify
+    change_resource_name = True # rename resource names in the received IPS file to new names to match what is defined in model
+    change_gateways_zones = False
 
     def __init__(
         self,
@@ -362,9 +342,6 @@ class ConPro(mesa.Model):
         leave_time_max=930,
         running_steps=100000,
         running=True,
-        # end new
-        width=132, # width of csv grid files
-        height=132, # height of csv grid files,
         n_plastering_workers=1,
         n_painting_workers=1,
         behavior_files=None,
@@ -401,7 +378,9 @@ class ConPro(mesa.Model):
         zones_dwwz_nwwz=None,
         behavior_files_dates=None,
         w_presence = 10, # will be considered working only when presence = 1 minute
+        ips_file = "init_IPSS"
     ):
+        self.ips_file = ips_file
         self.w_presence = w_presence
         self.ignored_durations_min=ignored_durations_min
         self.ignored_durations_max=ignored_durations_max
@@ -457,22 +436,17 @@ class ConPro(mesa.Model):
 
         self.one_behavior_file = one_behavior_file
         if behavior_files is None and self.one_behavior_file:
-            behavior_files = { key:"init_IPS.csv".format(key) for key in list(painting_worker_skills.keys()) + list(palstering_worker_skills.keys())}
+            behavior_files = { key:self.ips_file+".csv".format(key) for key in list(painting_worker_skills.keys()) + list(palstering_worker_skills.keys())}
         else:
-            behavior_files = {key: "init_IPS_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
+            behavior_files = {key: self.ips_file+"_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
 
         if tasks_sequence is None:
             tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
             # tasks_sequence = {1:["KEYSTART", "KEYFRAMES"]}#{1:["KEYSTART", "KEYFRAMES"], 2:['KEYMECH'], 3:['KEYELEC']} # , 2:['KEYMECH'], 3:['KEYELEC'], 4:["KEYINSU"],5:["KEYSTUD"], 6:["KEYPAINTING"], 7:["KEYFINISHING"], 8:["KEYEND"]}
         if drywalls_points is None:
             drywalls_points=[
-                [[3,118],[19,118], "dry_wall5"],
-                [[19,119],[19,127], "dry_wall5"],
-                # [[11, 11], [2, 11], "dry_wall4"],
-                # [[12, 10], [15, 10], "dry_wall1"],
-                #  [[43,33],[43,38], "dry_wall7"]
-                [[2, 23], [12, 23], "dry_wall3"],
-                [[12, 11], [12, 22], "dry_wall3"]] # modify
+                [[0,0],[0,10], "dry_wall5"],
+                [[19,12],[19,14], "dry_wall5"]] # modify
         # self.trades_tasks = trades_tasks
         # self.dwwz = dwwz
         self.init_walk_speed = 0.5
@@ -504,8 +478,6 @@ class ConPro(mesa.Model):
                                   "color":self.colors["painting"]},
                       }
         self.passed_working_time = start_day
-        self.width = width
-        self.height = height
         self.running = True
         self.agent_id = 0
         self.drywalls_points = drywalls_points
@@ -957,14 +929,16 @@ class ConPro(mesa.Model):
         df = pd.read_csv(file_path, sep=",")
         df = add_datetime_col(df)
 
-        # rename resources
-        resource_name = self.resource_name
-        df["Resource name"] = df["Resource name"].replace(resource_name)
+        if self.change_resource_name:
+            # rename resources
+            resource_name = self.resource_name
+            df["Resource name"] = df["Resource name"].replace(resource_name)
 
-        # rename gateways
-        gateways_zones = self.gateways_zones
-        # Replace values in the 'column_name' column using the dictionary
-        df['Gateway'] = df['Gateway'].replace(gateways_zones)
+        if self.change_gateways_zones:
+            # rename gateways
+            gateways_zones = self.gateways_zones
+            # Replace values in the 'column_name' column using the dictionary
+            df['Gateway'] = df['Gateway'].replace(gateways_zones)
 
         # filter the data based on trade and start date and end date
         df = df[df.apply(filter_rows, axis=1)]
@@ -1309,14 +1283,15 @@ class ConPro(mesa.Model):
         :return:
         """
         # read in landscape file from supplmentary material
-        wall_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U5")
+        wall_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=";", dtype="|U5")
         ##########
         #
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
         #
         ###########
-        max_array_x = wall_key.shape[1]
         max_arry_y = wall_key.shape[0]
+        max_array_x = wall_key.shape[1]
+
 
         for _, point in self.grid.coord_iter():
             x, y = point[0], point[1]
@@ -1400,14 +1375,14 @@ class ConPro(mesa.Model):
                 wall = Route(self.agent_id, self, (x, y))
                 self.add_agent(wall, wall.pos)
 
-    def init_inner_wall_agents(self, filename="init_inner_walls.csv" ):
+    def init_inner_wall_agents(self, filename="init_external_walls.csv" ):
         """
         intialize/creat wall agents
         :param filename: text file represent grids contain type of wall in each grid
         :return:
         """
         # read in landscape file from supplmentary material
-        wall_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U5")
+        wall_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=";", dtype="|U5")
         ##########
         #
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
@@ -1419,7 +1394,7 @@ class ConPro(mesa.Model):
             x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 wall = wall_key[self.height-1-y, x]
-                if wall=="I":
+                if wall=="W":
                     wall = InnerWall(self.agent_id, self, (x, y))
                     self.add_agent(wall, wall.pos)
 

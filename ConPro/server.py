@@ -26,7 +26,7 @@ model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_durati
 model_params["simulation_speed_microsec"] = mesa.visualization.NumberInput( "simulation_speed_microsec", value=1500000) # 1500000 1.5 sec # 15000000 15 sec
 model_params["seed"] = mesa.visualization.NumberInput( "seed", value=randrange(4294967294))
 # model_params["one_behavior_file"] = mesa.visualization.Checkbox( "one_behavior_file", value=True)
-canvas_element = mesa.visualization.CanvasGrid(Agent_portrayal, 66, 132, 1300, 1300)
+canvas_element = mesa.visualization.CanvasGrid(Agent_portrayal, ConPro.width, ConPro.height, ConPro.width*10, ConPro.height*10)
 
 class ShowSomeText(TextElement):
     """
