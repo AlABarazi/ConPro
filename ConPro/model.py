@@ -7,6 +7,22 @@ from pathfinding.core.diagonal_movement import DiagonalMovement
 from pathfinding.core.grid import Grid
 from pathfinding.finder.a_star import AStarFinder
 import mesa
+from datetime import datetime
+from configparser import ConfigParser
+import warnings
+import pandas as pd
+import scipy.stats as st
+import statsmodels.api as sm
+from scipy.stats._continuous_distns import _distn_names
+import matplotlib.pyplot as plt
+# Helper Functions
+from datetime import datetime, time, timedelta
+from copy import copy, deepcopy
+import random
+import os
+import re
+import matplotlib
+from operator import methodcaller
 from .agent_externalwall import ExternalWall
 from .agent_innerwall import InnerWall
 from .agent_route import Route
@@ -16,12 +32,10 @@ from .agent_zone import Zone
 from .agent_zone_label import ZoneLabel
 from .agent_dummy_drywall import DummyDrywall
 from .init_read_tasks import read_csv, filter_cols, read_task
+import pickle
 
-# Helper Functions
-from datetime import datetime, time, timedelta
-from copy import copy
-import random
-import os
+config = ConfigParser()
+
 # from .init_data_read_tasks import read_tasks
 
 def generate_drywall_points(drywalls_points = [
@@ -68,15 +82,33 @@ def geometric_mean(list_of_prices):
     """
     return np.exp(np.log(list_of_prices).mean())
 
-def get_trade(agent):
+def get_attribute(agent, class_type, method_or_attribute_name):
     """
-    For agent reporters in data collector
-    return list of trade partners and None for other agents
+    get agent object, its class type and method name to report
+    :param agent:
+    :param class_type:
+    :param name:
+    :return: the results of object method
     """
-    if isinstance(agent, Worker):
-        return agent.trade
+    if isinstance(agent, class_type):
+        result = getattr(agent, method_or_attribute_name)
+        if hasattr(agent, method_or_attribute_name) and not callable(result):
+            # return attribute
+            # print ("attribute", method_or_attribute_name)
+            # import time
+            # time.sleep(1)
+            return result
+        else:#if attribute is method
+            # if it's not attribute then it's a function
+            # print ("method", method_or_attribute_name)
+            # import time
+            # time.sleep(1)
+            f = methodcaller(method_or_attribute_name)# , element if you need to pass variable to method
+            result = f(agent)
+            return result
     else:
         return None
+
 
 def get_utilization(model):
     """
@@ -123,16 +155,164 @@ class ConPro(mesa.Model):
     """
     Agent-based simulation model for construction processes
     """
+    agents_attributes = {Worker: [ "FullfillingIntention", "trade", "intentionExpire", "utilization","t_at_workplace", "t_at_workplace", "IntentionStartTime", "IntentionFullfilmentTime", "total_intentions", "t_at_site","selected_task_key", "drywall_name", "is_idle" ], Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["n_visitors","n_workers","n_trades"]}#,   ]}#, Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["get_current_trades"]} # "is_idle",  # ,
+    read_behavior_from_pickle = True
+    pickle_file_path = "workers_behaviors_pickels/pickle.pkl"
+    perform_data_fitting = False # Change to true if scenario require fitting (finding pdf again)
+    pdf_size = 10000
+    pdf_to_execlude = [
+    'levy_stable', # always execlude this
+    'studentized_range', # always execlude this
+    # 'ksone',
+    # 'kstwo',
+    # 'kstwobign',
+    # 'norm',
+    # 'alpha',
+    # 'anglit',
+    # 'arcsine',
+    # 'beta',
+    # 'betaprime',
+    # 'bradford',
+    # 'burr',
+    # 'burr12',
+    # 'fisk',
+    # 'cauchy',
+    # 'chi',
+    # 'chi2',
+    # 'cosine',
+    # 'dgamma',
+    # 'dweibull',
+    # 'expon',
+    # 'exponnorm',
+    # 'exponweib',
+    # 'exponpow',
+    # 'fatiguelife',
+    # 'foldcauchy',
+    # 'f',
+    # 'foldnorm',
+    # 'weibull_min',
+    # 'truncweibull_min',
+    # 'weibull_max',
+    # 'genlogistic',
+    # 'genpareto',
+    # 'genexpon',
+    # 'genextreme',
+    # 'gamma',
+    # 'erlang',
+    # 'gengamma',
+    # 'genhalflogistic',
+    # 'genhyperbolic',
+    # 'gompertz',
+    # 'gumbel_r',
+    # 'gumbel_l',
+    # 'halfcauchy',
+    # 'halflogistic',
+    # 'halfnorm',
+    # 'hypsecant',
+    # 'gausshyper',
+    # 'invgamma',
+    # 'invgauss',
+    # 'geninvgauss',
+    # 'norminvgauss',
+    # 'invweibull',
+    # 'johnsonsb',
+    # 'johnsonsu',
+    # 'laplace',
+    # 'laplace_asymmetric',
+    # 'levy',
+    # 'levy_l',
+    # 'logistic',
+    # 'loggamma',
+    # 'loglaplace',
+    # 'lognorm',
+    # 'gibrat',
+    # 'maxwell',
+    # 'mielke',
+    # 'kappa4',
+    # 'kappa3',
+    # 'moyal',
+    # 'nakagami',
+    # 'ncx2',
+    # 'ncf',
+    # 't',
+    # 'nct',
+    # 'pareto',
+    # 'lomax',
+    # 'pearson3',
+    # 'powerlaw',
+    # 'powerlognorm',
+    # 'powernorm',
+    # 'rdist',
+    # 'rayleigh',
+    # 'loguniform',
+    # 'reciprocal',
+    # 'rice',
+    # 'recipinvgauss',
+    # 'semicircular',
+    # 'skewcauchy',
+    # 'skewnorm',
+    # 'trapezoid',
+    # 'trapz',
+    # 'triang',
+    # 'truncexpon',
+    # 'truncnorm',
+    # 'truncpareto',
+    # 'tukeylambda',
+    # 'uniform',
+    # 'vonmises',
+    # 'vonmises_line',
+    # 'wald',
+    # 'wrapcauchy',
+    # 'gennorm',
+    # 'halfgennorm',
+    # 'crystalball',
+    # 'argus',
+    # 'rel_breitwigner'
+]
+    resource_name = {
+        "A1": "plastering",
+        "A1 3rd delivery": "plastering",
+        "A1 and A2": "plastering",
+        "A2": "plastering",
+        "A2 3rd delivery": "plastering",
+        "АЗ": "plastering",
+        "A3 and A4": "plastering",
+        "A4": "plastering",
+        "A4 3rd delivery": "plastering",
+        "A5": "plastering",
+        "A6": "plastering",
+        "A6 3rd delivery": "plastering",
+        "A7": "plastering",
+        "A7 and A8": "painting",
+        "A8": "painting",
+        "A8 3rd delivery": "painting",
+        "bricklayer 1": "painting",
+        "bricklayer 2": "painting",
+        "carpenter 1": "painting",
+        "carpenter 2": "painting",
+        "foreman 1": "painting",
+        "foreman 2": "painting",
+        "General material": "painting",
+        "odd-job man": "painting",
+        "plasterer 1": "plastering",
+        "plasterer 2": "plastering",
+        "plasterer 3": "plastering",
+        "plumber 1": "plastering",
+        "plumber 2": "plastering"
+    } #modify changing names in ips file
+    gateways_zones = {0: 'Storage201', 32: 'A4', 33: "A4", 35: "Elevator",
+                      36: "A7", 37: "A6", 38: "Storage204", 39: "A8", 40: "Corridor",
+                      41: "A3", 42: "Staircase", 43: "A5"}
     project_directory = "ConPro/"
-    x_init_worker = 10
-    y_init_worker = 2
+    x_init_worker = 10 # initial x coordinations of worker
+    y_init_worker = 2 # initial y coordinations of worker
     weekdays = { 0:"Monday",1:"Tuesday", 2:"Wednesday", 3:"Thursday",4:"Friday",5:"Saturday",6:"Sunday"}
-    grids_size = 16  # 16 grids per square meter
+    # grids_size = 16  # 16 grids per square meter
     trades_tasks_keys = {'KEYSTART': ["plastering"], 'KEYFRAMES': ["painting"], 'KEYMECH': ["plastering"],
                     'KEYELEC': ["painting"],
                     'KEYINSU': ["plastering"], 'KEYSTUD': ["painting"], 'KEYPAINTING': ["plastering"],
-                    'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]}
-    colors = {"plastering": "green", "painting": "red"}
+                    'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]} # modify
+    colors = {"plastering": "green", "painting": "red"} # modify
 
     def __init__(
         self,
@@ -140,7 +320,7 @@ class ConPro(mesa.Model):
         seed=random.randrange(4294967294),
         project_startdate=datetime(2021, 12, 31, 7, 0, 0, 0),
         simulation_startdate=datetime(2022, 5, 16, 6, 0, 0, 0),  # site B (2021, 10, 11), site A electrician 2022-05-16
-        simulation_speed_microsec=1500000,  # 1500000 1.5sec # 15000000 15 sec
+        simulation_speed_microsec=15000,  # 1500000 1.5sec # 15000000 15 sec
         start_day=800,
         start_hour=6,
         workingday_minutes=510,
@@ -188,7 +368,6 @@ class ConPro(mesa.Model):
         n_plastering_workers=1,
         n_painting_workers=1,
         behavior_files=None,
-            
     ##########
     #
     #varaiables to change
@@ -217,15 +396,60 @@ class ConPro(mesa.Model):
         palstering_worker_skills=None,
         painting_worker_skills=None,
         one_behavior_file=True,
-        dwwz=None
+        ignored_durations_min=0,
+        ignored_durations_max=180,
+        zones_dwwz_nwwz=None,
+        behavior_files_dates=None,
+        w_presence = 10, # will be considered working only when presence = 1 minute
     ):
-        if dwwz is None:
-            dwwz = list()
+        self.w_presence = w_presence
+        self.ignored_durations_min=ignored_durations_min
+        self.ignored_durations_max=ignored_durations_max
+        if zones_dwwz_nwwz is None:
+            zones_dwwz_nwwz = {"wz":[], "nwz":[]}
         if palstering_worker_skills is None:
-            palstering_worker_skills = {"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100}
-
+            palstering_worker_skills = {"KEYMECH": 400, "KEYSTART": 400, "KEYINSU": 400, "KEYPAINTING": 400, "KEYEND": 400} # modify
         if painting_worker_skills is None:
-            painting_worker_skills = {"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}
+            painting_worker_skills = {"KEYFRAMES": 500, "KEYELEC": 500, "KEYSTUD": 500, "KEYFINISHING": 500} # modify
+
+        if behavior_files_dates is None:
+            behavior_files_dates = {"KEYSTART":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYFRAMES":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYMECH":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYELEC":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYINSU":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYSTUD":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYPAINTING":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYFINISHING":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+],
+                                    "KEYEND":[
+    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+]
+            } #modify
         # if trades_tasks is None:
         #     trades_tasks = {'KEYSTART': ["plastering"], 'KEYFRAMES': ["painting"], 'KEYMECH': ["plastering"], 'KEYELEC': ["painting"],
         #      'KEYINSU': ["plastering"], 'KEYSTUD': ["painting"], 'KEYPAINTING': ["plastering"],
@@ -233,24 +457,26 @@ class ConPro(mesa.Model):
 
         self.one_behavior_file = one_behavior_file
         if behavior_files is None and self.one_behavior_file:
-            behavior_files = { key:"init_behavior_file.csv".format(key) for key in self.trades_tasks_keys.keys()}
+            behavior_files = { key:"init_IPS.csv".format(key) for key in list(painting_worker_skills.keys()) + list(palstering_worker_skills.keys())}
         else:
-            behavior_files = {key: "init_behavior_file_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
+            behavior_files = {key: "init_IPS_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
+
         if tasks_sequence is None:
-            tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}
+            tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
             # tasks_sequence = {1:["KEYSTART", "KEYFRAMES"]}#{1:["KEYSTART", "KEYFRAMES"], 2:['KEYMECH'], 3:['KEYELEC']} # , 2:['KEYMECH'], 3:['KEYELEC'], 4:["KEYINSU"],5:["KEYSTUD"], 6:["KEYPAINTING"], 7:["KEYFINISHING"], 8:["KEYEND"]}
         if drywalls_points is None:
             drywalls_points=[
-                # [[3,118],[19,118], "dry_wall5"],
-                # [[19,119],[19,127], "dry_wall5"],
-                [[11, 11], [2, 11], "dry_wall4"],
-                [[12, 10], [15, 10], "dry_wall1"],
+                [[3,118],[19,118], "dry_wall5"],
+                [[19,119],[19,127], "dry_wall5"],
+                # [[11, 11], [2, 11], "dry_wall4"],
+                # [[12, 10], [15, 10], "dry_wall1"],
                 #  [[43,33],[43,38], "dry_wall7"]
                 [[2, 23], [12, 23], "dry_wall3"],
-                [[12, 11], [12, 22], "dry_wall3"]]
+                [[12, 11], [12, 22], "dry_wall3"]] # modify
         # self.trades_tasks = trades_tasks
-        self.dwwz = dwwz # drywall_working_zones
-        print ("self.dwwz", self.dwwz)
+        # self.dwwz = dwwz
+        self.init_walk_speed = 0.5
+        self.zones_dwwz_nwwz=zones_dwwz_nwwz
         self.painting_worker_skills = painting_worker_skills
         self.palstering_worker_skills = palstering_worker_skills
         self.behavior_files = behavior_files
@@ -272,9 +498,9 @@ class ConPro(mesa.Model):
         # production rate KEYMECH is measured in u/h.
         self.workers = {
                       "plastering":{"n":n_plastering_workers,"production_rate":palstering_worker_skills,
-                                    "behavior_files":behavior_files, 'color':self.colors["plastering"]},
+                                    "behavior_files":behavior_files,"behavior_files_dates":behavior_files_dates, 'color':self.colors["plastering"]},
                       "painting":{"n":n_painting_workers, "production_rate":painting_worker_skills,
-                                  "behavior_files":behavior_files,
+                                  "behavior_files":behavior_files,"behavior_files_dates":behavior_files_dates,
                                   "color":self.colors["painting"]},
                       }
         self.passed_working_time = start_day
@@ -365,17 +591,16 @@ class ConPro(mesa.Model):
         self.get_status()
         self.time_jump()
         self.set_zone_max_workers()
-        
-        #
+
+
         #Intitialize/create intitial agents from grid files csv
         #
         self.init_agents()
-        self.init_read_worker_behavioral_data()
+        # self.init_read_worker_behavioral_data()
         self.determine_scenario_name()
         # self.print_object_attributes(self) # model
         # self.print_object_attributes(list(self.workers_agents.values())[0][0])  # model
         # self.print_object_attributes(list(self.drywalls_agents.values())[0][0])  # model
-
         self.datacollector = mesa.DataCollector(
             model_reporters={
                 "get_seed": lambda m: ConPro.get_seed(m),
@@ -392,12 +617,168 @@ class ConPro(mesa.Model):
                 "KEYFINISHING": lambda m: get_left(m, "KEYFINISHING"),
                 "KEYEND": lambda m: get_left(m, "KEYEND"),
                 "scenario":lambda m: m.scenario,
-                "completed_in":lambda m:m.schedule.steps
+                "completed_in":lambda m:m.schedule.steps,
+                "current_datetime":lambda m:m.current_datetime,
+                "today":lambda m:m.today,
+                "today_minutes":lambda m:m.today_minutes
             },
-            agent_reporters={
-                "Trade": lambda a: get_trade(a)
-            }
+
+            agent_reporters = {
+            # "Trade": lambda a: get_attribute(a, Worker, "trade"),
+            f"{type.__name__}_{att}": (lambda t, a: lambda x: get_attribute(x, t, a))(type, att)
+            for type in self.agents_attributes.keys()
+            for att in self.agents_attributes[type]
+        }
         )
+        # print ({type.__name__ + "_" + att:("something", type, att) for type in self.agents_attributes.keys() for att in self.agents_attributes[type]})
+
+
+    #
+    # def is_config_set(self):
+    #     """
+    #     check if configrutioin is already set
+    #     :return:
+    #     """
+    #     file_path = self.get_current_path('config.ini')
+    #     config.read(file_path)
+    #     if config['pdf']['wz'] == "nothing":
+    #         return False
+    #     else :
+    #         return True
+
+    def set_config(self, config):
+        """
+        Set the config.ini file when the model run for the first time. config.ini fit the data from site to the known distribution
+        #todo: use linear regression or other regression and machine learning for fitting porpose
+        :return:
+        """
+        file_path = self.get_current_path('config.ini')
+        with open(file_path, 'w') as configfile:
+            config.write(configfile)
+
+
+        # Create models from data
+    def best_fit_distribution(self, data, bins=200, ax=None):
+        """Model data by finding best fit distribution to data"""
+        # Get histogram of original data
+        y, x = np.histogram(data, bins=bins, density=True)
+        x = (x + np.roll(x, -1))[:-1] / 2.0
+
+        # Best holders
+        best_distributions = []
+
+        # Estimate distribution parameters from data
+        for ii, distribution in enumerate([d for d in _distn_names if not d in self.pdf_to_execlude]):
+
+            # print("{:>3} / {:<3}: {}".format(ii + 1, len(_distn_names), distribution))
+            distribution_obj = getattr(st, distribution)
+
+            # Try to fit the distribution
+            try:
+                # Ignore warnings from data that can't be fit
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore')
+
+                    # fit dist to data
+                    params = distribution_obj.fit(data)
+
+                    # Separate parts of parameters
+                    arg = params[:-2]
+                    loc = params[-2]
+                    scale = params[-1]
+
+                    # Calculate fitted PDF and error with fit in distribution
+                    pdf = distribution_obj.pdf(x, loc=loc, scale=scale, *arg)
+                    sse = np.sum(np.power(y - pdf, 2.0))
+
+                    # if axis pass in add to plot
+                    try:
+                        if ax:
+                            pd.Series(pdf, x).plot(ax=ax)
+                        end
+                    except Exception:
+                        pass
+
+                    # identify if this distribution is better
+                    best_distributions.append((distribution_obj, params, sse, distribution))
+
+            except Exception:
+                pass
+        plt.savefig("./plots/plot.png")
+        return sorted(best_distributions, key=lambda x: x[2])
+
+    def make_pdf(self, dist_name, params, size=10000, dist_obj=None):
+        """Generate distributions's Probability Distribution Function """
+        # Separate parts of parameters
+        if dist_obj == None:
+            dist = getattr(st, dist_name)
+        arg = params[:-2]
+        loc = params[-2]
+        scale = params[-1]
+        # Get sane start and end points of distribution
+        start = dist.ppf(0.01, *arg, loc=loc, scale=scale) if arg else dist.ppf(0.01, loc=loc, scale=scale)
+        end = dist.ppf(0.99, *arg, loc=loc, scale=scale) if arg else dist.ppf(0.99, loc=loc, scale=scale)
+        # Build PDF and turn into pandas Series
+        x = np.linspace(start, end, size)
+        y = dist.pdf(x, loc=loc, scale=scale, *arg)
+        pdf = pd.Series(y, x)
+        return pdf
+
+    def get_pdfunc(self,worker_type, key, zone_type, data=[1, 2, 2, 2, 2, 3], plot=True, title="Durations in Possibly Working Zone",
+                   x_title="Duration"):
+        path = self.get_current_path('./plots/pdf{}-{}-{}.png'.format(worker_type, key, zone_type))
+        # data = pd.Series(sm.datasets.elnino.load_pandas().data.set_index('YEAR').values.ravel())
+        data = pd.Series(data)
+        matplotlib.rcParams['figure.figsize'] = (16.0, 12.0)
+        matplotlib.style.use('ggplot')
+        # numpy.random.choice(numpy.arange(1, 7), p=[0.1, 0.05, 0.05, 0.2, 0.4, 0.2])
+        # Load data from statsmodels datasets
+
+        # Plot for comparison
+        plt.figure(figsize=(12, 8))
+        ax = data.plot(kind='hist', bins=200, density=True, alpha=0.5,
+                       color=list(matplotlib.rcParams['axes.prop_cycle'])[1]['color'])
+
+
+        # Save plot limits
+        dataYLim = ax.get_ylim()
+
+        # Find best fit distribution
+        best_distibutions = self.best_fit_distribution(data, 200, ax)
+        plt.savefig(path)
+        best_dist = best_distibutions[0]
+        pdf_name, params = best_dist[3], best_dist[1]
+        # Make PDF with best params
+        pdf = self.make_pdf(best_dist[3], best_dist[1], size = self.pdf_size) # pdf_name, params
+
+        # matplotlib.pyplot.show()
+        param_names = (best_dist[0].shapes + ', loc, scale').split(', ') if best_dist[0].shapes else ['loc',
+                                                                                                      'scale']
+        param_str = ', '.join(['{}={:0.2f}'.format(k, v) for k, v in zip(param_names, best_dist[1])])
+        dist_str = '{}({})'.format(best_dist[0].name, param_str)
+        five_bst_dist = []
+        for dist in best_distibutions[:5]:
+            param_names = (dist[0].shapes + ', loc, scale').split(', ') if best_dist[0].shapes else ['loc', 'scale']
+            param_str = ', '.join(['{}={:0.2f}'.format(k, v) for k, v in zip(param_names, best_dist[1])])
+            five_bst_dist.append('{}({})'.format(best_dist[0].name, param_str))
+        if plot:
+            title = title + "{}-{}-{}".format(worker_type, key, zone_type)
+            # Update plots
+            ax.set_ylim(dataYLim)
+            ax.set_title(title)
+            ax.set_xlabel(x_title)
+            ax.set_ylabel('Frequency')
+            # Display
+            plt.figure(figsize=(12, 8))
+            ax = pdf.plot(lw=2, label='PDF', legend=True)
+            data.plot(kind='hist', bins=50, density=True, alpha=0.5, label='Data', legend=True, ax=ax)
+            ax.set_title(title + '\n' + dist_str)
+            ax.set_xlabel(x_title)
+            ax.set_ylabel('Frequency')
+            # matplotlib.pyplot.show(block=False)
+            plt.savefig(path)
+            matplotlib.pyplot.show()
+        return pdf, dist_str, best_dist, five_bst_dist, pdf_name, params
 
     def is_route_file_generated(self, filename="init_route.csv"):
         """
@@ -476,6 +857,22 @@ class ConPro(mesa.Model):
         # for attribute in dir(object):
         #     print(attribute, getattr(object, attribute))
 
+    def get_current_path(self, target_file="config.ini"):
+        import os
+
+        # Get the current file's path
+        current_file_path = os.path.abspath(__file__)
+
+        # Determine the directory of the current file
+        current_directory = os.path.dirname(current_file_path)
+
+
+        # Construct the full path to the target file
+        file_path = os.path.join(current_directory, target_file)
+
+        # Print the contents of the file
+        return file_path
+
     def is_value_close(self, value, value1, rel_to=1e-02):
         """
         compare two float values and consider them equal if they are close enough
@@ -486,26 +883,38 @@ class ConPro(mesa.Model):
         """
         return math.isclose(value, value1, rel_tol=rel_to)
 
-    def init_read_worker_behavioral_data(self, filename="init_behavior_file.csv"):
+    def init_read_worker_behavioral_data(self, filename="init_IPS.csv", worker_type="painting",key="KEYMECH",
+                                         datetime_ranges = [('2000-01-01 08:00:00', '2100-01-01 12:00:00'),('2000-01-01 08:00:00', '2100-01-01 12:00:00')] ):
         """
         Read behaviroal data for each trade worker
         :param filename: this is the file name which contain timeline showing location of worker and duration in that location
         :return: probablity distribution to go to specific zone and the probablity distribution of duration in that zone
         """
-        #todo note that lower function here is made like spaghtti code... to be fixed
-        behavior_data_file = filename
-        file_path = self.project_directory + behavior_data_file
-        durations_dist = {}
-        df = pd.read_csv(file_path, sep=",")
-        a = df.groupby('Activity Classification').count()
-        Activities_counts = df['Activity Classification'].value_counts()
-        Activities_counts_dic = dict(Activities_counts)
-        Activities_counts_dic_lower = {k.lower(): v for k, v in Activities_counts_dic.items()} # lowercase the keys
-        total_inputs = sum(Activities_counts_dic_lower.values())
-        Activities_counts_dic_w = {key: value / total_inputs for (key, value) in Activities_counts_dic_lower.items()}
-        # duration = datetime.strptime("1.00.31", '%H.%M.%S')
-        # total_seconds = duration.second + duration.minute * 60 + duration.hour * 3600
+        # todo note that lower function here is made like spaghtti code... to be fixed
+        # todo when init the model generate behavioral files for each task/trade (let us say trade)
+        # todo add filter to the data to pick only relevant trade
+        # todo add filter to the data to pick only date range
+        pickle_file_path = self.get_current_path(target_file=self.pickle_file_path)
+        isExist = os.path.exists(pickle_file_path)
+        if not isExist:
+            self.read_behavior_from_pickle = False
+            with open(pickle_file_path, 'wb') as file:
+                pickle.dump({}, file)
+        isEmpty = not os.path.getsize(pickle_file_path) > 0
+        if isEmpty:
+            self.read_behavior_from_pickle = False
+        elif not isEmpty:
+            with open(pickle_file_path, 'rb') as f:
+                pickle_dic = pickle.load(f)
 
+        if self.read_behavior_from_pickle :
+            # based on the workertype and key return stuff from pickle_dic
+            results = pickle_dic[worker_type+key]
+            task_porb, durations_dist, activities, wz_nwz_prob, nwz_wz_pdfs = results
+            return task_porb, durations_dist, activities, wz_nwz_prob, nwz_wz_pdfs
+
+        def filter_rows(row, worker_type=worker_type):
+            return row['Resource name'] == worker_type
         def convert_durations_to_seconds(input, string_format='%H.%M.%S'):
             """
             Take string of date time and convert it to datetime objects and then to seconds
@@ -517,14 +926,136 @@ class ConPro(mesa.Model):
             total_seconds = duration.second + duration.minute * 60 + duration.hour * 3600
             return total_seconds
 
-        df['duration_seconds'] = df['Duration'].apply(convert_durations_to_seconds)
+        def add_datetime_col(df):
+            # Combine start date columns into a single column
+            df['start_date'] = pd.to_datetime(df['Start Year'].astype(str) + '-' +
+                                              df['Start Month'].astype(str) + '-' +
+                                              df['Start Day'].astype(str))
+
+            # Combine end date columns into a single column
+            df['end_date'] = pd.to_datetime(df['End Year'].astype(str) + '-' +
+                                            df['End Month'].astype(str) + '-' +
+                                            df['End Day'].astype(str))
+            # Add hours, minutes, and seconds to the date columns
+            df['start_date'] += pd.to_timedelta(df['Start Hours'], unit='h')
+            df['start_date'] += pd.to_timedelta(df['Start Minutes'], unit='m')
+            df['start_date'] += pd.to_timedelta(df['Start Seconds'], unit='s')
+
+            df['end_date'] += pd.to_timedelta(df['End Hours'], unit='h')
+            df['end_date'] += pd.to_timedelta(df['End Minutes'], unit='m')
+            df['end_date'] += pd.to_timedelta(df['End Seconds'], unit='s')
+
+            # Convert start_date and end_date columns to datetime type
+            df['start_date'] = pd.to_datetime(df['start_date'])
+            df['end_date'] = pd.to_datetime(df['end_date'])
+            return df
+
+        behavior_data_file = filename
+        # file_path = self.project_directory + behavior_data_file
+        file_path = self.project_directory + behavior_data_file
+        durations_dist = {}
+        df = pd.read_csv(file_path, sep=",")
+        df = add_datetime_col(df)
+
+        # rename resources
+        resource_name = self.resource_name
+        df["Resource name"] = df["Resource name"].replace(resource_name)
+
+        # rename gateways
+        gateways_zones = self.gateways_zones
+        # Replace values in the 'column_name' column using the dictionary
+        df['Gateway'] = df['Gateway'].replace(gateways_zones)
+
+        # filter the data based on trade and start date and end date
+        df = df[df.apply(filter_rows, axis=1)]
+
+        # Convert the date and time ranges to datetime objects
+        datetime_ranges = [(pd.to_datetime(start), pd.to_datetime(end)) for start, end in datetime_ranges]
+        df = df[
+            df.apply(lambda row: any(
+                (start_datetime <= row['start_date'] <= end_datetime) or
+                (start_datetime <= row['end_date'] <= end_datetime)
+                for start_datetime, end_datetime in datetime_ranges
+            ), axis=1)
+        ]
+        a = df.groupby('Gateway').count()
+        Activities_counts = df['Gateway'].value_counts()
+        Activities_counts_dic = dict(Activities_counts)
+        Activities_counts_dic_lower = {k.lower(): v for k, v in Activities_counts_dic.items()}  # lowercase the keys
+        total_inputs = sum(Activities_counts_dic_lower.values())
+        Activities_counts_dic_w = {key: value / total_inputs for (key, value) in Activities_counts_dic_lower.items()}
+        activities = [activity for activity in Activities_counts_dic_w if activity != ""]
+        wz = list(filter(lambda activity: bool(re.match(r'\b[A-Za-z]\d+\b', activity)), activities))
+        nwz = list(filter(lambda activity: not bool(re.match(r'\b[A-Za-z]\d+\b', activity)), activities))
+        Activities_counts_w_wz = [Activities_counts_dic_w[key] for key in wz]
+        Activities_counts_w_nwz = [Activities_counts_dic_w[key] for key in nwz]
+        p_wz = sum(Activities_counts_w_wz)
+        p_nwz = sum(Activities_counts_w_nwz)
+        wz_nwz_prob = {"nwz": p_nwz, "wz": p_wz}
+        # duration = datetime.strptime("1.00.31", '%H.%M.%S')
+        # total_seconds = duration.second + duration.minute * 60 + duration.hour * 3600
+        # Define a filtering function
+        # df['duration_seconds'] = df['Durations'].apply(convert_durations_to_seconds)
+        df['duration_seconds'] = df['Durations'] * 60
         for Activity in Activities_counts_dic.keys():
-            Work_Preparation = df[df["Activity Classification"] == Activity]
+            Work_Preparation = df[df["Gateway"] == Activity]
             durations_dist[Activity.lower()] = list(Work_Preparation['duration_seconds'])
         task_porb = Activities_counts_dic_w
-        durations_dist = durations_dist
-        activities = [activity for activity in Activities_counts_dic_w if activity != ""]
-        return task_porb, durations_dist, activities
+        config_file_path = self.get_current_path("config.ini")
+        config.read(config_file_path, encoding='utf-8-sig')
+        if self.perform_data_fitting: # not self.is_config_set()
+            wz_data = [value for wz_key in wz for value in durations_dist[wz_key] if
+                       value < self.ignored_durations_max and value > self.ignored_durations_min]
+            nwz_data = [value for nwz_key in nwz for value in durations_dist[nwz_key] if
+                        value < self.ignored_durations_max and value > self.ignored_durations_min]
+            pdf_wz, dst_st_wz, best_dist_wz, best_distibutions_wz, pdf_name_wz, params_wz = self.get_pdfunc(worker_type, key, "wz", wz_data)
+            pdf_nwz, dst_st_nwz, best_dist_nwz, best_distibutions_nwz, pdf_name_nwz, params_nwz = self.get_pdfunc(
+                 worker_type, key, "nwz",nwz_data)
+            # read config.ini file
+            # change config.ini values
+
+            if not config.has_section(key):
+                config.add_section(key)
+            config.set(key, "best_distibutions_wz", str(best_dist_wz))
+            config.set(key, "best_distibutions_nwz", str(best_dist_nwz))
+            config.set(key, "pdf_wz", str(dst_st_wz))
+            config.set(key, "pdf_nwz", str(dst_st_nwz))
+            config.set(key, "pdf_name_wz", str(pdf_name_wz))
+            config.set(key, "pdf_name_nwz", str(pdf_name_nwz))
+            config.set(key, "params_wz", str(params_wz))
+            config.set(key, "params_nwz", str(params_nwz))
+            #
+            # config["best_distibutions"]["wz"] = str(best_dist_wz)
+            # config["best_distibutions"]["nwz"] = str(best_dist_wz)
+            # config["pdf"]["wz"] = str(dst_st_wz)
+            # config["pdf"]["nwz"] = str(dst_st_nwz)
+            # config["pdf_name"]["wz"] = str(pdf_name_wz)
+            # config["pdf_name"]["nwz"] = str(pdf_name_nwz)
+            # config["params"]["wz"] = str(params_wz)
+            # config["params"]["nwz"] = str(params_nwz)
+            # write to config.ini
+            self.set_config(config)
+        else :
+            pdf_name_wz = config[key]["pdf_name_wz"]
+            pdf_name_nwz = config[key]["pdf_name_nwz"]
+            params_wz = config[key]["params_wz"]
+            params_nwz = config[key]["params_nwz"]
+            pdf_wz = self.make_pdf(pdf_name_wz, eval(params_wz))
+            pdf_nwz = self.make_pdf(pdf_name_nwz, eval(params_nwz))
+        nwz_wz_pdfs = {"wz": pdf_wz, "nwz": pdf_nwz}
+        #todo: pickled data instead
+        #todo: if fittinig is done config no need
+        if isEmpty:
+            with open(pickle_file_path, 'wb') as f:
+                pickle.dump({worker_type + key:[task_porb, durations_dist, activities, wz_nwz_prob, nwz_wz_pdfs]}, f)
+        else:
+            pickle_dic[worker_type + key] = [task_porb, durations_dist, activities, wz_nwz_prob, nwz_wz_pdfs]
+            with open(pickle_file_path, 'wb') as f:
+                pickle.dump(pickle_dic, f)
+
+
+
+        return task_porb, durations_dist, activities, wz_nwz_prob,nwz_wz_pdfs
 
     def init_agents(self):
         """
@@ -551,6 +1082,7 @@ class ConPro(mesa.Model):
         :return:
         """
         for worker_type, worker_info in self.workers.items():
+
             for n_workers in range(worker_info['n']):
                 x, y = self.x_init_worker, self.y_init_worker
                 # production rate is given in u/h
@@ -558,16 +1090,19 @@ class ConPro(mesa.Model):
                 worker = Worker(self.agent_id, self, (x, y), trade=worker_type,  production_rate=production_rate_step,
                                 behavior_files=worker_info["behavior_files"], color=worker_info["color"], arrival=0 )
                 behaviors_by_key = dict()
+                # print(worker_type)
                 for key in worker_info["behavior_files"].keys():
-                    task_porb, durations_dist, activities = self.init_read_worker_behavioral_data(worker_info["behavior_files"][key])
-                    behaviors_by_key[key] = {"task_porb":task_porb, "durations_dist":durations_dist, "activities":activities}
+                    task_porb, durations_dist, activities, wz_nwz_prob,nwz_wz_pdfs = self.init_read_worker_behavioral_data(worker_info["behavior_files"][key],worker_type,key,
+                                                                                                                           worker_info["behavior_files_dates"][key] )
+                    behaviors_by_key[key] = {"task_porb":task_porb, "durations_dist":durations_dist, "activities":activities, "wz_nwz_prob":wz_nwz_prob, "nwz_wz_pdfs":nwz_wz_pdfs}
                 worker.behaviors_by_key = behaviors_by_key
                 # print ("worker_behaviors_by_key", behaviors_by_key)
-                # worker.task_porb, worker.durations_dist, worker.activities = self.init_read_worker_behavioral_data(worker_info["behavior_file"])
                 self.add_agent(worker, worker.pos) # to grid and scheduale
                 # add workers to dictionary to keep track of them, access them
                 self.workers_agents[worker_type] = self.workers_agents.get(worker_type, [])
                 self.workers_agents[worker_type].append(worker)
+                # print(worker.trade, worker.behaviors_by_key.keys())
+        self.perform_data_fitting = False
 
     def intit_drywalls(self):
         """
@@ -586,7 +1121,6 @@ class ConPro(mesa.Model):
                 zone_pos = self.zones_agents[zone][0].pos
                 tasks={key: {} for key in cols}
                 for phase in cols:
-                    print(self.dwwz, "lksjdflksdfj")
                     tasks[phase]["amount"] = df.loc[name, phase]
                     tasks[phase]["start_date"] = df.loc[name, "start_date"]
                     tasks[phase]["end_date"] = df.loc[name, "end_date"]
@@ -623,9 +1157,8 @@ class ConPro(mesa.Model):
                     self.zones_agents[name] = self.zones_agents.get(name, [])
                     self.zones_agents[name].append(zone)
                     self.number_of_drywalls += 1
-                    self.dwwz.append(parent_zone.name)
+                    self.zones_dwwz_nwwz["wz"].append(parent_zone.name)
                     parent_zone.working_zone = True
-                    print (self.dwwz, "self.dwwz")
                 else:
                     dummy_drywall = DummyDrywall(self.agent_id, self, pos=point,  drywall=drywall, name=name)
                     self.add_agent(dummy_drywall, dummy_drywall.pos)
@@ -720,7 +1253,8 @@ class ConPro(mesa.Model):
         ###########
         max_array_x = zone_key.shape[1]
         max_arry_y = zone_key.shape[0]
-        for _, x, y in self.grid.coord_iter():
+        for _, point in self.grid.coord_iter():
+            x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 cell_content = zone_key[self.height-1-y, x].lower()
                 if cell_content!= "0":
@@ -731,10 +1265,12 @@ class ConPro(mesa.Model):
                     # keep track of zones in the model
                     self.zones_agents[cell_content] = self.zones_agents.get(cell_content, [])
                     self.zones_agents[cell_content].append(zone)
+                    if not bool(re.match(r'\b[A-Za-z]\d+\b', cell_content)):
+                        self.zones_dwwz_nwwz["nwz"].append(cell_content)
 
     def init_zones_labels_agents(self, filename="init_zones.csv"):
         """
-        intialize/creat zone labels agents
+        intialize/creat zone labels agents. The porpuse of this is  to add label to the zone ? so when worker move to zone, the label still visible on other grid
         :param filename: text file represent grids contain type of zone in each grid
         :return:
         """
@@ -747,7 +1283,8 @@ class ConPro(mesa.Model):
         ###########
         max_array_x = zone_key.shape[1]
         max_arry_y = zone_key.shape[0]
-        for _, x, y in self.grid.coord_iter():
+        for _, point in self.grid.coord_iter():
+            x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 cell_content = zone_key[self.height - 1 - y, x].lower()
                 if cell_content != "0":
@@ -765,7 +1302,6 @@ class ConPro(mesa.Model):
         """
         zones_colors = {zone:self.generate_random_color() for zone in self.zones}
 
-
     def init_external_wall_agents(self, filename="init_external_walls.csv" ):
         """
         intialize/creat wall agents
@@ -782,7 +1318,8 @@ class ConPro(mesa.Model):
         max_array_x = wall_key.shape[1]
         max_arry_y = wall_key.shape[0]
 
-        for _, x, y in self.grid.coord_iter():
+        for _, point in self.grid.coord_iter():
+            x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 wall = wall_key[self.height-1-y, x]
                 if wall=="W":
@@ -833,8 +1370,6 @@ class ConPro(mesa.Model):
         self.xymap_arr = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U5")
         # self.xymap_arr = np.genfromtxt(self.init_route, delimiter=",", dtype="|U5")
 
-
-
     def update_xymap(self, pos=(0, 0), value=1):
         """
         Add or remove obstacle to the map
@@ -858,7 +1393,8 @@ class ConPro(mesa.Model):
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
         #
         ###########
-        for _, x, y in self.grid.coord_iter():
+        for _, point in self.grid.coord_iter():
+            x, y = point[0], point[1]
             wall = self.xymap_arr[self.height-1-y, x]
             if wall=="1":
                 wall = Route(self.agent_id, self, (x, y))
@@ -879,7 +1415,8 @@ class ConPro(mesa.Model):
         ###########
         max_array_x = wall_key.shape[1]
         max_arry_y = wall_key.shape[0]
-        for _, x, y in self.grid.coord_iter():
+        for _, point in self.grid.coord_iter():
+            x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 wall = wall_key[self.height-1-y, x]
                 if wall=="I":
@@ -1322,7 +1859,6 @@ class ConPro(mesa.Model):
         if self.schedule.steps > self.running_steps:
             self.running = False
 
-
         if self.is_all_drywalls_completed():
             print("all completed")
             self.run_agent_step_bytype(Drywall)
@@ -1331,7 +1867,6 @@ class ConPro(mesa.Model):
             self.run_agent_step_bytype(Worker)
             self.run_agent_step_bytype(Zone)
             self.running = False
-
 
         # collect model level data
         # self.datacollector.collect(self)

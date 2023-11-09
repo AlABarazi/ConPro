@@ -18,7 +18,7 @@ class Worker(mesa.Agent):
     This agent represent the worker agent, in this project drywall worker is modeled
     In futuer development, this should be a parent class where all other workers type can be considered child to it.
     """
-    walk_speed = 0.5 #m/second
+
     def __init__(
         self,
         unique_id,
@@ -50,7 +50,12 @@ class Worker(mesa.Agent):
         IntentionStartTime=0, 
         IntentionFullfilmentTime=0,
         total_intentions=0, 
-        t_at_site=0
+        t_at_site=0,
+        target_space = None,
+        selected_task_key = None,
+        drywall_name = None,
+        drywall = None,
+
     ):
         super().__init__(unique_id, model)
         if production_rate is None:
@@ -59,6 +64,16 @@ class Worker(mesa.Agent):
             behavior_files = dict()
         if behaviors_by_key is None:
             behaviors_by_key = dict()
+        if target_space == None:
+            target_space = None
+        if selected_task_key == None:
+            selected_task_key = None
+        if drywall_name == None:
+            drywall_name = None
+        if drywall == None:
+            drywall = None
+        self.drywall_name = drywall_name
+        self.walk_speed = self.model.init_walk_speed
         self.pos = pos
         self.moore = moore
         self.trade = trade
@@ -134,15 +149,16 @@ class Worker(mesa.Agent):
         self.mytimes["lunch_break_duration"] =  0
         self.mytimes["placing_lunchbox_duration"] = 0
         self.mytimes["mt_picking_du"] = 0
-        self.target_space = None
-        self.selected_task_key = None
-        self.drywall_name = None
-        self.drywall = None
         self.behavior_files = behavior_files
         self.status = self.model.arrival_zone_name # elevator
         self.intention = self.model.arrival_zone_name
         self.total_time_idle = 0
         self.idle_percentage = 0
+        self.selected_task_key = None
+        self.drywall = drywall
+        self.target_space = target_space
+        self.last_t_at_workplace = 0
+
         # endnew
 
     def change_visual(self):
@@ -587,17 +603,37 @@ class Worker(mesa.Agent):
         """
         if self.target_space:
             self.destination = self.target_space.pos
+    def pick_choice_pdfunc(self, pdfseries):
+        """
+        :param pdfseries:pdf series which has index
+        :return:
+        """
 
     def utility_functions_select_intention(self):
         """
         worker agent decide what to do next
         :return: next activity and its duration
         """
+        # {"task_porb":task_porb, "durations_dist":durations_dist, "activities":activities, "wz_nwz_prob":wz_nwz_prob, "nwz_wz_pdfs":nwz_wz_pdfs}
+        # print ("selected_task_key", self.selected_task_key)
         if self.selected_task_key:
-            next_work = self.model.random.choices(population=list(self.behaviors_by_key[self.selected_task_key]["task_porb"].keys()) ,weights=list(self.behaviors_by_key[self.selected_task_key]["task_porb"].values()), k=1)
+            # print("self.behaviors_by_key", self.behaviors_by_key)
+            task_porb = self.behaviors_by_key[self.selected_task_key]["wz_nwz_prob"]
+            next_work = self.model.random.choices(population=list(task_porb.keys()) ,weights=list(task_porb.values()), k=1)
             next_work = next_work[0]
-            next_work_durations = self.behaviors_by_key[self.selected_task_key]["durations_dist"][next_work]#df[df[next_work] != ""][next_work]
-            duration = self.model.random.choice(next_work_durations)
+            next_work_durations_pdfseries = self.behaviors_by_key[self.selected_task_key]["nwz_wz_pdfs"][next_work]
+            population = next_work_durations_pdfseries.index
+            weights = next_work_durations_pdfseries.values
+            duration = self.model.random.choices(population, weights)[0]
+            duration if duration >= 0 else self.utility_functions_select_intention()
+            # print ("next_work", next_work, duration)
+            next_work = self.model.random.choices(self.model.zones_dwwz_nwwz[next_work]) # working zone or non working zone
+            next_work = next_work[0]
+            # return choices(population, weights)[0]
+            # next_work = self.model.random.choices(population=list(self.behaviors_by_key[self.selected_task_key]["task_porb"].keys()) ,weights=list(self.behaviors_by_key[self.selected_task_key]["task_porb"].values()), k=1)
+            # next_work = next_work[0]
+            # next_work_durations = self.behaviors_by_key[self.selected_task_key]["durations_dist"][next_work]#df[df[next_work] != ""][next_work]
+            # duration = self.model.random.choice(next_work_durations)
             return (next_work, duration)
         # return (random.choices(breakList, cum_weights=(1, 10), k=1)[0])
 
@@ -826,14 +862,18 @@ class Worker(mesa.Agent):
                 if self.isFullfillingIntention():
                     self.move()
                     self.set_status()
+                    self.entered_wp_at = None
                     # self.sendVisitorOutOfSpace()
                     if self.isArrivedtoSpace():
                         self.registerVisitorToSpace()
                         self.setIntentionFullfillmentTime()
                         self.FullfillingIntention = False
+
                 if self.isAtWorkPlace():
-                    self.drywall.reduce_amount(self.production_rate[self.selected_task_key])
                     self.calculate_utilization()
+                    self.last_t_at_workplace +=(self.model.simulation_speed_microsec/1000000)/60
+                    if self.last_t_at_workplace > self.model.w_presence:
+                        self.drywall.reduce_amount(self.production_rate[self.selected_task_key])
             if self.drywall.tasks[self.selected_task_key]["finished"]:
                 #todo:remove worker from zone
                 # self.model.decrease_n_workers(self.selected_task_key, self.task_index)

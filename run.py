@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import mesa
 from ConPro.model import ConPro
 from ConPro.server import server
-from mesa.batchrunner import BatchRunner, BatchRunnerMP, batch_run
+from mesa.batchrunner import batch_run
 import pickle
 import numpy as np
 import seaborn as sns
@@ -201,7 +201,7 @@ def slugify(value, allow_unicode=False):
     value = re.sub(r'[^\w\s-]', '', value.lower())
     return re.sub(r'[-\s]+', '-', value).strip('-_')
 
-def append_df(condition=True):
+def append_df(condition=False):
     "combine resulted excel file into"
     file_path = pathlib.Path(__file__).parent.absolute()
     project_path = file_path.parent
@@ -233,8 +233,9 @@ def runner(variable_par_ls, iterations=1, max_steps=1000, number_processes=None,
                         number_processes=number_processes,
                         data_collection_period=data_collection_period,
                         display_progress=True)
-    # results_df = pd.DataFrame(results)
-    results_filtered = results_df[(results_df.Step == max_steps) & (results_df.Trade == "painting")]
+    results_df = pd.DataFrame(results)
+    # results_filtered = results_df[(results_df.Step == max_steps) & (results_df.Trade == "painting")]
+    results_filtered = results_df
     # results_filtered = results_df
     output_path = create_directory()
     filenamemodel = output_path + 'model_' + datetime.now().strftime("%m-%d%-Y_%H_%M_%S")
@@ -260,7 +261,7 @@ def runner(variable_par_ls, iterations=1, max_steps=1000, number_processes=None,
     #    ]
     #    print(results_one_episode.to_string(index=False, columns=["Step", "Gini"], max_rows=25))
 
-def main(iterations=10, max_steps=30000, variable_params=Scenarios1):  # variable_params=SiteA1 SiteB SiteA
+def main(iterations=10, max_steps=30000, variable_params=Scenarios1, data_collection_period =3):  # variable_params=SiteA1 SiteB SiteA
     List_of_Variables = []
     for keys, item in variable_params.items():
         List_of_Variables.append(item)
@@ -269,13 +270,14 @@ def main(iterations=10, max_steps=30000, variable_params=Scenarios1):  # variabl
     start = datetime.now()
     for variable_par_ls in list_combination:
         variable_par_ls = list(variable_par_ls)
-        runner(variable_par_ls, iterations, max_steps=max_steps, number_processes=None, data_collection_period=max_steps, variable_params=variable_params)
-    append_df(condition=True)
+        data_collection_period = min(max_steps, data_collection_period)
+        runner(variable_par_ls, iterations, max_steps=max_steps, number_processes=None, data_collection_period=data_collection_period, variable_params=variable_params)
+    append_df(condition=False)
     print("Finished in: {:.2f}s".format((datetime.now() - start).total_seconds()))
 
 if __name__ == '__main__':
     # args = sys.argv[1:]
-    args = ["runserver"]
+    args = ["batch"]
 
     if args[0] == "runserver":
         server.launch()
@@ -286,8 +288,8 @@ if __name__ == '__main__':
         print("Conducting a Batch Run")
         freeze_support()
         # main(iterations=1, max_steps=1, variable_params=Scenarios1)
-        # main(iterations=1, max_steps=1, variable_params=Scenarios2)
-        main(iterations=10, max_steps=10000, variable_params=Scenarios3)
+        # main(iterations=2, max_steps=10000, variable_params=Scenarios2, data_collection_period=3)
+        main(iterations=2, max_steps=1000, variable_params=Scenarios2, data_collection_period=10)
 
     elif "results" in args[0]:
         append_df(condition=True)

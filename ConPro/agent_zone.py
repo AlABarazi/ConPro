@@ -31,6 +31,9 @@ class Zone(mesa.Agent):
             "heading_y":1
         }
         self.parent_zone = parent_zone
+        self.n_visitors = 0
+        self.n_workers = 0
+        self.n_trades = 0
  
     # def total_workers(self):
     #     """
@@ -53,6 +56,27 @@ class Zone(mesa.Agent):
         :return:
         """
         return len(self.current_visitors) >= self.model.zone_max_visitor
+
+    def get_current_visitors(self):
+        """
+        return the number of visitors
+        :return:
+        """
+        return len(self.current_visitors)
+
+    def get_assgined_workers(self):
+        """
+        return the number of assgined_workers
+        :return:
+        """
+        return len(self.assgined_workers)
+
+    def get_current_trades(self):
+        """
+        return the number of current_trades
+        :return:
+        """
+        return len(self.current_trades)
 
     def is_trades_full(self):
         """
@@ -132,3 +156,6 @@ class Zone(mesa.Agent):
         if self.isNewVisual:
             self.change_visual()
             self.isNewVisual = True
+        self.n_visitors = self.get_current_visitors()
+        self.n_workers = self.get_assgined_workers()
+        self.n_trades = self.get_current_trades()

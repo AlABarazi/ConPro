@@ -2,7 +2,7 @@ import mesa
 from .model import ConPro
 from mesa.visualization.modules import TextElement, CanvasGrid, ChartModule, BarChartModule
 from mesa.visualization.ModularVisualization import ModularServer
-from mesa.visualization.UserParam import UserSettableParameter
+# from mesa.visualization.UserParam import UserSettableParameter
 from random import randrange
 
 def Agent_portrayal(agent):
@@ -10,17 +10,10 @@ def Agent_portrayal(agent):
         return
     else:
         return agent.visual
+# model_params = {}
 
-# model_params = {
-#     "n_plastering_workers": mesa.visualization.NumberInput(
-#         "plastering", value=1
-#     ),
-#     "n_painting_workers": mesa.visualization.NumberInput(
-#         "painting", value=1
-#     )
-# }
 
-params_list = ["n_plastering_workers", "n_painting_workers", "zone_max_worker", "zone_max_trades",
+params_list = ["w_presence", "n_plastering_workers", "n_painting_workers", "zone_max_worker", "zone_max_trades",
                "KEYSTART_max","KEYFRAMES_max","KEYMECH_max","KEYELEC_max", "KEYINSU_max", "KEYSTUD_max", "KEYPAINTING_max",  "KEYFINISHING_max",
                "KEYEND_max"]
 
@@ -32,7 +25,7 @@ model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_durati
 
 model_params["simulation_speed_microsec"] = mesa.visualization.NumberInput( "simulation_speed_microsec", value=1500000) # 1500000 1.5 sec # 15000000 15 sec
 model_params["seed"] = mesa.visualization.NumberInput( "seed", value=randrange(4294967294))
-model_params["one_behavior_file"] = mesa.visualization.Checkbox( "one_behavior_file", value=True)
+# model_params["one_behavior_file"] = mesa.visualization.Checkbox( "one_behavior_file", value=True)
 canvas_element = mesa.visualization.CanvasGrid(Agent_portrayal, 66, 132, 1300, 1300)
 
 class ShowSomeText(TextElement):
