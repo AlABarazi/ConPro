@@ -293,6 +293,7 @@ class ConPro(mesa.Model):
     colors = {"plastering": "green", "painting": "red"} # modify
     change_resource_name = True # rename resource names in the received IPS file to new names to match what is defined in model
     change_gateways_zones = False
+    inner_walls_has_file = False
 
     def __init__(
         self,
@@ -380,6 +381,11 @@ class ConPro(mesa.Model):
         w_presence = 10, # will be considered working only when presence = 1 minute
         ips_file = "init_IPSS"
     ):
+        self.current_floor = "5"
+        self.filename_ew = "init_floor{}.csv".format(self.current_floor)
+        self.filename_iw = "init_inner_floor{}.csv".format(self.current_floor)
+        if not self.inner_walls_has_file:
+            self.filename_iw = self.filename_ew
         self.ips_file = ips_file
         self.w_presence = w_presence
         self.ignored_durations_min=ignored_durations_min
@@ -1040,14 +1046,15 @@ class ConPro(mesa.Model):
         if not self.is_route_file_generated():
             self.generat_path_file()
         self.init_external_wall_agents()
-        self.init_inner_wall_agents()
+        if self.inner_walls_has_file:
+            self.init_inner_wall_agents()
         self.init_path()
         self.init_zones_agents()
-        # self.init_route_agents()
-        self.init_xymap()
-        self.init_worker_agents()
-        self.intit_drywalls()
-        self.init_zones_labels_agents()
+        # # self.init_route_agents()
+        # self.init_xymap()
+        # self.init_worker_agents()
+        # self.intit_drywalls()
+        # self.init_zones_labels_agents()
 
     def init_worker_agents(self, filename="init_behavior_file.csv" ):
         """
@@ -1131,7 +1138,7 @@ class ConPro(mesa.Model):
                     self.zones_agents[name] = self.zones_agents.get(name, [])
                     self.zones_agents[name].append(zone)
                     self.number_of_drywalls += 1
-                    self.zones_dwwz_nwwz["wz"].append(parent_zone.name)
+                    self.zones_dwwz_nwwz["wz"].append(parent_zone.name) # zones that has work to be done are considered working zones
                     parent_zone.working_zone = True
                 else:
                     dummy_drywall = DummyDrywall(self.agent_id, self, pos=point,  drywall=drywall, name=name)
@@ -1212,14 +1219,14 @@ class ConPro(mesa.Model):
         hexadecimal = ["#" + ''.join([self.random.choice('ABCDEF0123456789') for i in range(6)])]
         return hexadecimal[0]
 
-    def init_zones_agents(self, filename="init_zones.csv" ):
+    def init_zones_agents(self ):
         """
         intialize/creat zone agents
         :param filename: text file represent grids contain type of zone in each grid
         :return:
         """
         # read in landscape file from supplmentary material
-        zone_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U10")
+        zone_key = np.genfromtxt("ConPro/{}".format(self.filename_ew), delimiter=";", dtype="|U10")
         ##########
         #
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
@@ -1231,7 +1238,7 @@ class ConPro(mesa.Model):
             x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 cell_content = zone_key[self.height-1-y, x].lower()
-                if cell_content!= "0":
+                if cell_content!= "0" and cell_content!= "1":
                     cell_content = cell_content.lower()
                     zone = Zone(self.agent_id, self, (x, y), name=cell_content)
                     self.add_agent(zone, zone.pos)
@@ -1283,7 +1290,7 @@ class ConPro(mesa.Model):
         :return:
         """
         # read in landscape file from supplmentary material
-        wall_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=";", dtype="|U5")
+        wall_key = np.genfromtxt("ConPro/{}".format(self.filename_ew), delimiter=";", dtype="|U5")
         ##########
         #
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
@@ -1297,7 +1304,7 @@ class ConPro(mesa.Model):
             x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 wall = wall_key[self.height-1-y, x]
-                if wall=="W":
+                if wall=="0":
                     wall = ExternalWall(self.agent_id, self, (x, y))
                     self.add_agent(wall, wall.pos)
 
@@ -1319,18 +1326,20 @@ class ConPro(mesa.Model):
         :param filename_ew: grid represent extanal waslls file name W mean external wall grid
         :return:
         """
-        xymap_pd_iw = pd.read_csv("{}".format("ConPro/{}".format(filename_iw)), header=None)
+        xymap_pd_iw = pd.read_csv("{}".format("ConPro/{}".format(self.filename_iw)), header=None)
         xymap_pd_iw.reset_index()
         xymap_pd_iw = xymap_pd_iw.set_axis(range(xymap_pd_iw.shape[0], 0, -1), axis='index')
         xymap_pd_iw = xymap_pd_iw.applymap(str)
-        xymap_pd_ew = pd.read_csv("{}".format("ConPro/{}".format(filename_ew)), header=None)
+        xymap_pd_ew = pd.read_csv("{}".format("ConPro/{}".format(self.filename_ew)), header=None)
         xymap_pd_ew.reset_index()
         xymap_pd_ew = xymap_pd_ew.set_axis(range(xymap_pd_ew.shape[0], 0, -1), axis='index')
         xymap_pd_ew = xymap_pd_ew.applymap(str)
         init_route = xymap_pd_iw.combine(xymap_pd_ew, np.maximum)
-        init_route = init_route.replace("0", 1)
-        init_route = init_route.replace("W", 0)
-        init_route = init_route.replace("I", 0)
+        init_route = init_route.replace("1", 1)
+        init_route = init_route.replace("0", 0)
+        init_route = init_route.applymap(lambda x: 1 if isinstance(x, str) and not x.isdigit() else x)
+        # init_route = init_route.replace("W", 0)
+        # init_route = init_route.replace("I", 0)
         init_route = init_route.applymap(int)
         init_route.to_csv("{}".format("ConPro/{}".format(output_filename)), index=False, header=False)
         # self.init_route=init_route.to_csv(index=False, header=False)
@@ -1345,11 +1354,11 @@ class ConPro(mesa.Model):
         self.xymap_arr = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U5")
         # self.xymap_arr = np.genfromtxt(self.init_route, delimiter=",", dtype="|U5")
 
-    def update_xymap(self, pos=(0, 0), value=1):
+    def update_xymap(self, pos=(0, 0), value=0):
         """
         Add or remove obstacle to the map
         :param pos: the position where to change the value
-        :param value: the value of the cell in that position
+        :param value: the value of the cell in that position, 0 is considered an obstacle  and 1  non obstacle 
         """
         pos = self.to_arrayxy(pos)
         self.xymap_arr [pos[0], pos[1]] = value
@@ -1371,7 +1380,7 @@ class ConPro(mesa.Model):
         for _, point in self.grid.coord_iter():
             x, y = point[0], point[1]
             wall = self.xymap_arr[self.height-1-y, x]
-            if wall=="1":
+            if wall=="0":#changed
                 wall = Route(self.agent_id, self, (x, y))
                 self.add_agent(wall, wall.pos)
 
@@ -1382,7 +1391,7 @@ class ConPro(mesa.Model):
         :return:
         """
         # read in landscape file from supplmentary material
-        wall_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=";", dtype="|U5")
+        wall_key = np.genfromtxt("ConPro/{}".format(self.filename_iw), delimiter=";", dtype="|U5")
         ##########
         #
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
@@ -1397,7 +1406,6 @@ class ConPro(mesa.Model):
                 if wall=="W":
                     wall = InnerWall(self.agent_id, self, (x, y))
                     self.add_agent(wall, wall.pos)
-
     def find_path(self, start=(0, 0), end=(0, 0)):
         """
         this function find the path of
@@ -1460,7 +1468,6 @@ class ConPro(mesa.Model):
             self.this_date = str(self.current_datetime.year) + "-" + str(
                 self.current_datetime.isocalendar()[1]) + "-" + self.dayNumber_to_Text(
                 self.current_datetime.weekday())
-
     def update_this_day_start_date(self):
         """update the reference date of this day so all other times are calculated according to this reference"""
         if self.today != self.current_datetime.day:
@@ -1492,8 +1499,6 @@ class ConPro(mesa.Model):
             scenario_name.append("-t")
         if  len(self.palstering_worker_skills) > 6:
             scenario_name.append("-l")
-
-
 
         if self.tasks_sequence == {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}:
             scenario_name.append("-Q1")
