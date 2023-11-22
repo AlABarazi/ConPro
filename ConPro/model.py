@@ -31,7 +31,7 @@ from .agent_drywall import Drywall
 from .agent_zone import Zone
 from .agent_zone_label import ZoneLabel
 from .agent_dummy_drywall import DummyDrywall
-from .init_read_tasks import read_csv, filter_cols, read_task
+from .init_read_tasks import filter_cols, read_task
 import pickle
 
 config = ConfigParser()
@@ -161,8 +161,8 @@ class ConPro(mesa.Model):
     perform_data_fitting = True # Change to true if scenario require fitting (finding pdf again)
     pdf_size = 10000
     # end new
-    width = 132  # width of csv grid files
-    height = 40  # height of csv grid files,
+    width = 132  # width of csv grid files, modify
+    height = 40  # height of csv grid files, modify
     pdf_to_execlude = [
     'levy_stable', # always execlude this
     'studentized_range', # always execlude this
@@ -284,6 +284,7 @@ class ConPro(mesa.Model):
     project_directory = "ConPro/"
     x_init_worker = 10 # initial x coordinations of worker
     y_init_worker = 2 # initial y coordinations of worker
+    init_worker_zone = "s" # modify . the name of the zone where the worker is
     weekdays = { 0:"Monday",1:"Tuesday", 2:"Wednesday", 3:"Thursday",4:"Friday",5:"Saturday",6:"Sunday"}
     # grids_size = 16  # 16 grids per square meter
     trades_tasks_keys = {'KEYSTART': ["plastering"], 'KEYFRAMES': ["painting"], 'KEYMECH': ["plastering"],
@@ -294,6 +295,8 @@ class ConPro(mesa.Model):
     change_resource_name = True # rename resource names in the received IPS file to new names to match what is defined in model
     change_gateways_zones = False
     inner_walls_has_file = False
+    is_tasks_line = False
+    tasks_file = "init_tasks_comma.csv"
 
     def __init__(
         self,
@@ -378,7 +381,7 @@ class ConPro(mesa.Model):
         ignored_durations_max=180,
         zones_dwwz_nwwz=None,
         behavior_files_dates=None,
-        w_presence = 10, # will be considered working only when presence = 1 minute
+        w_presence = 10, # will be considered working only when presence = 1 minute, Zhou threshold
         ips_file = "init_IPSS"
     ):
         self.current_floor = "5"
@@ -396,7 +399,6 @@ class ConPro(mesa.Model):
             palstering_worker_skills = {"KEYMECH": 400, "KEYSTART": 400, "KEYINSU": 400, "KEYPAINTING": 400, "KEYEND": 400} # modify
         if painting_worker_skills is None:
             painting_worker_skills = {"KEYFRAMES": 500, "KEYELEC": 500, "KEYSTUD": 500, "KEYFINISHING": 500} # modify
-
         if behavior_files_dates is None:
             behavior_files_dates = {"KEYSTART":[
     ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
@@ -445,14 +447,14 @@ class ConPro(mesa.Model):
             behavior_files = { key:self.ips_file+".csv".format(key) for key in list(painting_worker_skills.keys()) + list(palstering_worker_skills.keys())}
         else:
             behavior_files = {key: self.ips_file+"_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
-
         if tasks_sequence is None:
             tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
             # tasks_sequence = {1:["KEYSTART", "KEYFRAMES"]}#{1:["KEYSTART", "KEYFRAMES"], 2:['KEYMECH'], 3:['KEYELEC']} # , 2:['KEYMECH'], 3:['KEYELEC'], 4:["KEYINSU"],5:["KEYSTUD"], 6:["KEYPAINTING"], 7:["KEYFINISHING"], 8:["KEYEND"]}
         if drywalls_points is None:
             drywalls_points=[
-                [[0,0],[0,10], "dry_wall5"],
-                [[19,12],[19,14], "dry_wall5"]] # modify
+                # [[0,0],[0,10], "dry_wall5"],
+                # [[19,12],[19,14], "dry_wall5"]
+            ] # modify
         # self.trades_tasks = trades_tasks
         # self.dwwz = dwwz
         self.init_walk_speed = 0.5
@@ -1050,11 +1052,11 @@ class ConPro(mesa.Model):
             self.init_inner_wall_agents()
         self.init_path()
         self.init_zones_agents()
-        # # self.init_route_agents()
-        # self.init_xymap()
-        # self.init_worker_agents()
-        # self.intit_drywalls()
-        # self.init_zones_labels_agents()
+        # self.init_route_agents()
+        self.init_xymap()
+        self.init_worker_agents()
+        self.intit_drywalls()
+        self.init_zones_labels_agents()
 
     def init_worker_agents(self, filename="init_behavior_file.csv" ):
         """
@@ -1065,10 +1067,12 @@ class ConPro(mesa.Model):
         for worker_type, worker_info in self.workers.items():
 
             for n_workers in range(worker_info['n']):
-                x, y = self.x_init_worker, self.y_init_worker
+                point = self.zones_agents[self.init_worker_zone][0].pos
+                #x, y = self.x_init_worker, self.y_init_worker
+                #point = (x, y)
                 # production rate is given in u/h
                 production_rate_step = {key:production_rate*self.simulation_speed_h for key, production_rate in worker_info["production_rate"].items()}
-                worker = Worker(self.agent_id, self, (x, y), trade=worker_type,  production_rate=production_rate_step,
+                worker = Worker(self.agent_id, self, point, trade=worker_type,  production_rate=production_rate_step,
                                 behavior_files=worker_info["behavior_files"], color=worker_info["color"], arrival=0 )
                 behaviors_by_key = dict()
                 # print(worker_type)
@@ -1091,16 +1095,78 @@ class ConPro(mesa.Model):
         :return:
         """
         #todo: add task id, attribute if task aquired
-        drywalls_lines = generate_drywall_points(self.drywalls_points)
-        filename = "init_tasks_comma.csv"
-        df = read_csv(filename="ConPro/{}".format(filename))
+        # self.drywalls_points = [
+        #     [[0, 0], [0, 10], "dry_wall5"],
+        #     [[19, 12], [19, 14], "dry_wall5"]]  # modify
+        # the loop should be over the tasks defiend in task file if line or lines found iin drywalls points then build the grids otherwise put only one point on zone locations
+
+
+        drywalls_lines = generate_drywall_points(self.drywalls_points) # {"task_name":[points]}
+        filename = self.tasks_file
+        df = pd.read_csv("ConPro/{}".format(filename), header=0, sep=';')
         df = df.set_index('task_name')
-        cols = filter_cols(df, filter_key="KEY")
-        for name, points in drywalls_lines.items():
-            for index, point in enumerate(points):
-                zone = df.loc[name, "zone"].lower()
-                zone_pos = self.zones_agents[zone][0].pos
-                tasks={key: {} for key in cols}
+        cols = filter_cols(df, filter_key="KEY") # list of tasks
+        for df_index, row in df.iterrows():
+            name = df_index
+            if df_index in drywalls_lines.keys():
+                for name, points in drywalls_lines.items():
+                    for index, point in enumerate(points):
+                        zone = df.loc[name, "zone"].lower()
+                        zone_pos = self.zones_agents[zone][0].pos
+                        tasks = {key: {} for key in cols}
+                        for phase in cols:
+                            tasks[phase]["amount"] = df.loc[name, phase]
+                            tasks[phase]["start_date"] = df.loc[name, "start_date"]
+                            tasks[phase]["end_date"] = df.loc[name, "end_date"]
+                            tasks[phase]["task_id"] = self.task_id
+                            tasks[phase]["drywall_id"] = self.agent_id
+                            tasks[phase]["aquired"] = False
+                            tasks[phase]["pos"] = point
+                            tasks[phase]["drywall"] = name
+                            tasks[phase]["finished"] = False
+                            tasks[phase]["zone_name"] = zone
+                            tasks[phase]["zone_pos"] = zone_pos
+                            tasks[phase]["phase_key"] = phase
+                            tasks[phase]["max_n_worker"] = self.max_task_workers[
+                                phase]  # todo: determine max number of woerks for each tasks
+                            tasks[phase]["n_worker"] = 0  # todo: determine max number of woerks for each tasks
+                            tasks[phase]["status"] = "pickable"
+                            tasks[phase]["constraints"] = set()
+                            self.task_id += 1
+                        if index == 0:  # create only one grid for drywall other grids are dummy drywalls (copy the state of the drywall)
+
+                            drywall = Drywall(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone,
+                                              hasStarted=False, current_workers=set())
+                            self.add_agent(drywall, drywall.pos)
+                            # self.update_xymap(drywall.pos, value=0)
+                            # keep track of dry_walls in the model
+                            self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
+                            self.drywalls_agents[name].append(drywall)
+                            # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
+                            # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
+                            # self.drywalls_in_zone[name].add()
+                            parent_zone = self.zones_agents[zone][0]
+                            zone = Zone(self.agent_id, self, pos=point, name=name, parent_zone=parent_zone)
+                            self.add_agent(zone, zone.pos)
+                            self.zones.add(name)
+                            # keep track of zones in the model
+                            self.zones_agents[name] = self.zones_agents.get(name, [])
+                            self.zones_agents[name].append(zone)
+                            self.number_of_drywalls += 1
+                            self.zones_dwwz_nwwz["wz"].append(
+                                parent_zone.name)  # zones that has work to be done are considered working zones
+                            parent_zone.working_zone = True
+                        else:
+                            dummy_drywall = DummyDrywall(self.agent_id, self, pos=point, drywall=drywall, name=name)
+                            self.add_agent(dummy_drywall, dummy_drywall.pos)
+                            # self.update_xymap(dummy_drywall.pos, value=0)
+                            # keep track of dry_walls in the model
+                            self.dummy_drywalls_agents[name] = self.dummy_drywalls_agents.get(name, [])
+                            self.dummy_drywalls_agents[name].append(dummy_drywall)
+            else:
+                zone_name = df.loc[name, "zone"].lower()
+                zone_pos = self.zones_agents[zone_name][0].pos
+                tasks = {key: {} for key in cols}
                 for phase in cols:
                     tasks[phase]["amount"] = df.loc[name, phase]
                     tasks[phase]["start_date"] = df.loc[name, "start_date"]
@@ -1108,20 +1174,20 @@ class ConPro(mesa.Model):
                     tasks[phase]["task_id"] = self.task_id
                     tasks[phase]["drywall_id"] = self.agent_id
                     tasks[phase]["aquired"] = False
-                    tasks[phase]["pos"] = point
+                    tasks[phase]["pos"] = zone_pos
                     tasks[phase]["drywall"] = name
                     tasks[phase]["finished"] = False
-                    tasks[phase]["zone_name"] = zone
+                    tasks[phase]["zone_name"] = zone_name
                     tasks[phase]["zone_pos"] = zone_pos
                     tasks[phase]["phase_key"] = phase
-                    tasks[phase]["max_n_worker"] = self.max_task_workers[phase] #todo: determine max number of woerks for each tasks
-                    tasks[phase]["n_worker"] = 0 #todo: determine max number of woerks for each tasks
+                    tasks[phase]["max_n_worker"] = self.max_task_workers[
+                        phase]  # todo: determine max number of woerks for each tasks
+                    tasks[phase]["n_worker"] = 0  # todo: determine max number of woerks for each tasks
                     tasks[phase]["status"] = "pickable"
                     tasks[phase]["constraints"] = set()
                     self.task_id += 1
-                if index == 0:#create only one grid for drywall other grids are dummy drywalls (copy the state of the drywall)
-
-                    drywall = Drywall(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone, hasStarted=False, current_workers=set())
+                    drywall = Drywall(self.agent_id, self, pos=zone_pos, name=name, tasks=tasks, zone=zone_name,
+                                      hasStarted=False, current_workers=set())
                     self.add_agent(drywall, drywall.pos)
                     # self.update_xymap(drywall.pos, value=0)
                     # keep track of dry_walls in the model
@@ -1130,23 +1196,69 @@ class ConPro(mesa.Model):
                     # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
                     # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
                     # self.drywalls_in_zone[name].add()
-                    parent_zone = self.zones_agents[zone][0]
-                    zone = Zone(self.agent_id, self, pos=point, name=name, parent_zone=parent_zone)
+                    parent_zone = self.zones_agents[zone_name][0]
+                    zone = Zone(self.agent_id, self, pos=zone_pos, name=name, parent_zone=parent_zone)
                     self.add_agent(zone, zone.pos)
                     self.zones.add(name)
                     # keep track of zones in the model
                     self.zones_agents[name] = self.zones_agents.get(name, [])
                     self.zones_agents[name].append(zone)
                     self.number_of_drywalls += 1
-                    self.zones_dwwz_nwwz["wz"].append(parent_zone.name) # zones that has work to be done are considered working zones
+                    self.zones_dwwz_nwwz["wz"].append(
+                        parent_zone.name)  # zones that has work to be done are considered working zones
                     parent_zone.working_zone = True
-                else:
-                    dummy_drywall = DummyDrywall(self.agent_id, self, pos=point,  drywall=drywall, name=name)
-                    self.add_agent(dummy_drywall, dummy_drywall.pos)
-                    # self.update_xymap(dummy_drywall.pos, value=0)
-                    # keep track of dry_walls in the model
-                    self.dummy_drywalls_agents[name] = self.dummy_drywalls_agents.get(name, [])
-                    self.dummy_drywalls_agents[name].append(dummy_drywall)
+
+        # for name, points in drywalls_lines.items():
+        #     for index, point in enumerate(points):
+        #         zone = df.loc[name, "zone"].lower()
+        #         zone_pos = self.zones_agents[zone][0].pos
+        #         tasks={key: {} for key in cols}
+        #         for phase in cols:
+        #             tasks[phase]["amount"] = df.loc[name, phase]
+        #             tasks[phase]["start_date"] = df.loc[name, "start_date"]
+        #             tasks[phase]["end_date"] = df.loc[name, "end_date"]
+        #             tasks[phase]["task_id"] = self.task_id
+        #             tasks[phase]["drywall_id"] = self.agent_id
+        #             tasks[phase]["aquired"] = False
+        #             tasks[phase]["pos"] = point
+        #             tasks[phase]["drywall"] = name
+        #             tasks[phase]["finished"] = False
+        #             tasks[phase]["zone_name"] = zone
+        #             tasks[phase]["zone_pos"] = zone_pos
+        #             tasks[phase]["phase_key"] = phase
+        #             tasks[phase]["max_n_worker"] = self.max_task_workers[phase] #todo: determine max number of woerks for each tasks
+        #             tasks[phase]["n_worker"] = 0 #todo: determine max number of woerks for each tasks
+        #             tasks[phase]["status"] = "pickable"
+        #             tasks[phase]["constraints"] = set()
+        #             self.task_id += 1
+        #         if index == 0:#create only one grid for drywall other grids are dummy drywalls (copy the state of the drywall)
+        #
+        #             drywall = Drywall(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone, hasStarted=False, current_workers=set())
+        #             self.add_agent(drywall, drywall.pos)
+        #             # self.update_xymap(drywall.pos, value=0)
+        #             # keep track of dry_walls in the model
+        #             self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
+        #             self.drywalls_agents[name].append(drywall)
+        #             # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
+        #             # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
+        #             # self.drywalls_in_zone[name].add()
+        #             parent_zone = self.zones_agents[zone][0]
+        #             zone = Zone(self.agent_id, self, pos=point, name=name, parent_zone=parent_zone)
+        #             self.add_agent(zone, zone.pos)
+        #             self.zones.add(name)
+        #             # keep track of zones in the model
+        #             self.zones_agents[name] = self.zones_agents.get(name, [])
+        #             self.zones_agents[name].append(zone)
+        #             self.number_of_drywalls += 1
+        #             self.zones_dwwz_nwwz["wz"].append(parent_zone.name) # zones that has work to be done are considered working zones
+        #             parent_zone.working_zone = True
+        #         else:
+        #             dummy_drywall = DummyDrywall(self.agent_id, self, pos=point,  drywall=drywall, name=name)
+        #             self.add_agent(dummy_drywall, dummy_drywall.pos)
+        #             # self.update_xymap(dummy_drywall.pos, value=0)
+        #             # keep track of dry_walls in the model
+        #             self.dummy_drywalls_agents[name] = self.dummy_drywalls_agents.get(name, [])
+        #             self.dummy_drywalls_agents[name].append(dummy_drywall)
 
     def add_agent(self, agent, pos=(0,0)):
         """
@@ -1256,7 +1368,7 @@ class ConPro(mesa.Model):
         :return:
         """
         # read in landscape file from supplmentary material
-        zone_key = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U10")
+        zone_key = np.genfromtxt("ConPro/{}".format(self.filename_ew), delimiter=";", dtype="|U10")
         ##########
         #
         # in numpy y come first and x come after [[1,2],[2,4]]. and y start from up, unlike mesa from down
@@ -1268,7 +1380,8 @@ class ConPro(mesa.Model):
             x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 cell_content = zone_key[self.height - 1 - y, x].lower()
-                if cell_content != "0":
+                print (cell_content, "cell_content ")
+                if cell_content!= "0" and cell_content!= "1":
                     cell_content = cell_content.lower()
                     zone_label = ZoneLabel(self.agent_id, self, (x-1, y), name=cell_content)
                     self.add_agent(zone_label, zone_label.pos)
@@ -1326,32 +1439,34 @@ class ConPro(mesa.Model):
         :param filename_ew: grid represent extanal waslls file name W mean external wall grid
         :return:
         """
-        xymap_pd_iw = pd.read_csv("{}".format("ConPro/{}".format(self.filename_iw)), header=None)
+        # todo: consider using layout csv for wall directly
+        xymap_pd_iw = pd.read_csv("{}".format("ConPro/{}".format(self.filename_iw)), header=None, sep=";")
         xymap_pd_iw.reset_index()
         xymap_pd_iw = xymap_pd_iw.set_axis(range(xymap_pd_iw.shape[0], 0, -1), axis='index')
         xymap_pd_iw = xymap_pd_iw.applymap(str)
-        xymap_pd_ew = pd.read_csv("{}".format("ConPro/{}".format(self.filename_ew)), header=None)
+        xymap_pd_ew = pd.read_csv("{}".format("ConPro/{}".format(self.filename_ew)), header=None, sep=";")
         xymap_pd_ew.reset_index()
         xymap_pd_ew = xymap_pd_ew.set_axis(range(xymap_pd_ew.shape[0], 0, -1), axis='index')
         xymap_pd_ew = xymap_pd_ew.applymap(str)
         init_route = xymap_pd_iw.combine(xymap_pd_ew, np.maximum)
-        init_route = init_route.replace("1", 1)
-        init_route = init_route.replace("0", 0)
+        
+        # init_route = init_route.replace("1", 1)
+        # init_route = init_route.replace("0", 0)
         init_route = init_route.applymap(lambda x: 1 if isinstance(x, str) and not x.isdigit() else x)
         # init_route = init_route.replace("W", 0)
         # init_route = init_route.replace("I", 0)
         init_route = init_route.applymap(int)
-        init_route.to_csv("{}".format("ConPro/{}".format(output_filename)), index=False, header=False)
+        init_route.to_csv("{}".format("ConPro/{}".format(output_filename)), index=False, header=False, sep=";")
         # self.init_route=init_route.to_csv(index=False, header=False)
         # print(self.init_route)
 
-    def init_path(self, filename="init_route.csv" ):
+    def init_path(self, filename="init_route.csv" ):#modify: regenerate init_route.csv if the floor changed
         """
         Initialize path created in init_route.csv 1 is wall and 0 is path
         :return:
         """
         # read in the map file from supplmentary material
-        self.xymap_arr = np.genfromtxt("ConPro/{}".format(filename), delimiter=",", dtype="|U5")
+        self.xymap_arr = np.genfromtxt("ConPro/{}".format(filename), delimiter=";", dtype="|U5")
         # self.xymap_arr = np.genfromtxt(self.init_route, delimiter=",", dtype="|U5")
 
     def update_xymap(self, pos=(0, 0), value=0):
@@ -1417,6 +1532,7 @@ class ConPro(mesa.Model):
         start = self.to_findpatharrayxy(start[0], start[1])
         end = self.to_findpatharrayxy(end[0], end[1])
         start = self.gridd.node(start[0], start[1])
+        print (end[0],end[1], self.gridd )
         end = self.gridd.node(end[0], end[1])
         finder = AStarFinder(diagonal_movement=DiagonalMovement.always)
         path, runs = finder.find_path(start, end, self.gridd)

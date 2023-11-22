@@ -21,8 +21,7 @@ model_params = {key:(mesa.visualization.NumberInput( key, value=1)) for key in p
 
 model_params["work_duration"] = mesa.visualization.NumberInput( "work_duration", value=0.4) # 1500000 1.5 sec # 15000000 15 sec
 model_params["work_duration_min"] = mesa.visualization.NumberInput( "work_duration_min", value=0.1) # 1500000 1.5 sec # 15000000 15 sec
-model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_duration_max", value=0.6) # 1500000 1.5 sec # 15000000 15 sec
-
+model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_duration_max", value=0.6) # 1500000 1.5 sec # 15000000 15 se
 model_params["simulation_speed_microsec"] = mesa.visualization.NumberInput( "simulation_speed_microsec", value=1500000) # 1500000 1.5 sec # 15000000 15 sec
 model_params["seed"] = mesa.visualization.NumberInput( "seed", value=randrange(4294967294))
 # model_params["one_behavior_file"] = mesa.visualization.Checkbox( "one_behavior_file", value=True)

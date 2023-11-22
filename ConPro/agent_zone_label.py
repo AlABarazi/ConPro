@@ -8,7 +8,6 @@ class ZoneLabel(mesa.Agent):
     Total number of people = visitors + workers
     The zone may allow one or more trade to work in at the same time. The number of trades can be set
     """
-    zones_colors={'storage204': '#94FAF1', 'A6': '#7AA988', 'A3': '#884E16', 'A7': '#02E974', 'storage201': '#AEC8DF', 'elevator': '#5A0BB9', 'A4': '#0BFBA9', 'A8': '#530F51', 'staircase': '#C0AECA', 'A5': '#1B2A74'}
     def __init__(self, unique_id, model, pos, name):
         super().__init__(unique_id, model)
         self.isNewVisual = True
