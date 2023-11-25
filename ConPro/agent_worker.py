@@ -320,7 +320,7 @@ class Worker(mesa.Agent):
         Set arrival and leave time for this worker. Also set breaks start times and their durations in minutes (since the starting of the day at 12 am )
         :return:
         """
-        self.mytimes["arrival_time"] = 360.25 # self.arrival_time()
+        self.mytimes["arrival_time"] = 360.25 # self.arrival_time() #modify
         self.utility_functions_select_intention()
         self.mytimes["coffe_break_start"] = self.set_coffeBr_time()
         self.mytimes["coffe_break2_start"] = self.set_coffeBr2_time()
@@ -793,7 +793,7 @@ class Worker(mesa.Agent):
         if the activation is made by step  function then the activation will not consider agent type
         """
         # if self.trade == "plastering":
-        #     self.print_attributes()
+        self.print_attributes()
         # print(self.mytimes)
         if self.isNewVisual:
             self.change_visual()

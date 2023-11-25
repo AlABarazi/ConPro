@@ -17,12 +17,12 @@ params_list = ["w_presence", "n_plastering_workers", "n_painting_workers", "zone
                "KEYSTART_max","KEYFRAMES_max","KEYMECH_max","KEYELEC_max", "KEYINSU_max", "KEYSTUD_max", "KEYPAINTING_max",  "KEYFINISHING_max",
                "KEYEND_max"]
 
-model_params = {key:(mesa.visualization.NumberInput( key, value=1)) for key in params_list }
-
-model_params["work_duration"] = mesa.visualization.NumberInput( "work_duration", value=0.4) # 1500000 1.5 sec # 15000000 15 sec
-model_params["work_duration_min"] = mesa.visualization.NumberInput( "work_duration_min", value=0.1) # 1500000 1.5 sec # 15000000 15 sec
-model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_duration_max", value=0.6) # 1500000 1.5 sec # 15000000 15 se
-model_params["simulation_speed_microsec"] = mesa.visualization.NumberInput( "simulation_speed_microsec", value=1500000) # 1500000 1.5 sec # 15000000 15 sec
+model_params = {key:(mesa.visualization.NumberInput( key, value=10)) for key in params_list }
+model_params["w_presence"] = mesa.visualization.NumberInput( "w_presence", value=0) # 1500000 1.5 sec # 15000000 15 sec
+model_params["work_duration"] = mesa.visualization.NumberInput( "work_duration", value=1.5) # 1500000 1.5 sec # 15000000 15 sec
+model_params["work_duration_min"] = mesa.visualization.NumberInput( "work_duration_min", value=1) # 1500000 1.5 sec # 15000000 15 sec
+model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_duration_max", value=10) # 1500000 1.5 sec # 15000000 15 se
+model_params["simulation_speed_microsec"] = mesa.visualization.NumberInput( "simulation_speed_microsec", value=150000000) # 1500000 1.5 sec # 15000000 15 sec
 model_params["seed"] = mesa.visualization.NumberInput( "seed", value=randrange(4294967294))
 # model_params["one_behavior_file"] = mesa.visualization.Checkbox( "one_behavior_file", value=True)
 canvas_element = mesa.visualization.CanvasGrid(Agent_portrayal, ConPro.width, ConPro.height, ConPro.width*10, ConPro.height*10)

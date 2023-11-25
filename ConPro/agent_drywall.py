@@ -263,16 +263,18 @@ class Drywall(mesa.Agent):
                 # self.reduce_amount() # task reduce amount by itself
                 if self.tasks[self.current_task_key]["amount"] <= 0:
                     self.set_task_finished()
-                    if self.is_dry_wall_completed():
+                    if self.is_dry_wall_completed() and not self.dry_wall_completed:
                         self.set_dry_wall_completed()
                         self.model.increase_completed_drywall()
                         if self.available_tasks:
                             self.select_task()
                         else:
                             self.current_task_key = None
-                        self.add_walls_to_map(self)
-                        for dummy_drywall in self.model.dummy_drywalls_agents[self.name]:
-                            self.add_walls_to_map(dummy_drywall)
+
+                        if self.name in self.model.drywalls_lines.keys():
+                            self.add_walls_to_map(self)
+                            for dummy_drywall in self.model.dummy_drywalls_agents[self.name]:
+                                self.add_walls_to_map(dummy_drywall)
                         #todo:set current_task_key to none
 
             elif not self.isAvailableTasksSet:

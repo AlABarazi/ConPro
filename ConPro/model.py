@@ -290,21 +290,27 @@ class ConPro(mesa.Model):
     trades_tasks_keys = {'KEYSTART': ["plastering"], 'KEYFRAMES': ["painting"], 'KEYMECH': ["plastering"],
                     'KEYELEC': ["painting"],
                     'KEYINSU': ["plastering"], 'KEYSTUD': ["painting"], 'KEYPAINTING': ["plastering"],
-                    'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]} # modify
+                    'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]} # modify # these are the tasks that will be included in siumlation
     colors = {"plastering": "green", "painting": "red"} # modify
     change_resource_name = True # rename resource names in the received IPS file to new names to match what is defined in model
     change_gateways_zones = False
     inner_walls_has_file = False
     is_tasks_line = False
     tasks_file = "init_tasks_comma.csv"
+    init_walk_speed = 0.5  # modify worker speed
+    grids_per_meter = 2  # modify, current number of grids per meter
 
     def __init__(
         self,
         # new
         seed=random.randrange(4294967294),
+        simulation_speed_microsec=150000000,  # 1500000 1.5sec # 15000000 15 sec
+        w_presence=1,  # will be considered working only when presence = 1 minute, Zhou threshold
+        ips_file="init_IPSS",  # modify, IPS file for resources
+        n_plastering_workers=1,
+        n_painting_workers=1,
         project_startdate=datetime(2021, 12, 31, 7, 0, 0, 0),
         simulation_startdate=datetime(2022, 5, 16, 6, 0, 0, 0),  # site B (2021, 10, 11), site A electrician 2022-05-16
-        simulation_speed_microsec=15000,  # 1500000 1.5sec # 15000000 15 sec
         start_day=800,
         start_hour=6,
         workingday_minutes=510,
@@ -346,8 +352,6 @@ class ConPro(mesa.Model):
         leave_time_max=930,
         running_steps=100000,
         running=True,
-        n_plastering_workers=1,
-        n_painting_workers=1,
         behavior_files=None,
     ##########
     #
@@ -380,13 +384,12 @@ class ConPro(mesa.Model):
         ignored_durations_min=0,
         ignored_durations_max=180,
         zones_dwwz_nwwz=None,
-        behavior_files_dates=None,
-        w_presence = 10, # will be considered working only when presence = 1 minute, Zhou threshold
-        ips_file = "init_IPSS"
+        behavior_files_dates=None
     ):
-        self.current_floor = "5"
-        self.filename_ew = "init_floor{}.csv".format(self.current_floor)
-        self.filename_iw = "init_inner_floor{}.csv".format(self.current_floor)
+        self.break_zone_name = "s"
+        self.current_floor = "5" # modify, current floor plan file
+        self.filename_ew = "init_floor{}.csv".format(self.current_floor) # modify, layout file for external walls, and zones
+        self.filename_iw = "init_inner_floor{}.csv".format(self.current_floor) # modify, layout file for internal walls, and zones
         if not self.inner_walls_has_file:
             self.filename_iw = self.filename_ew
         self.ips_file = ips_file
@@ -395,10 +398,10 @@ class ConPro(mesa.Model):
         self.ignored_durations_max=ignored_durations_max
         if zones_dwwz_nwwz is None:
             zones_dwwz_nwwz = {"wz":[], "nwz":[]}
-        if palstering_worker_skills is None:
-            palstering_worker_skills = {"KEYMECH": 400, "KEYSTART": 400, "KEYINSU": 400, "KEYPAINTING": 400, "KEYEND": 400} # modify
+        if palstering_worker_skills is None:#mofigy
+            palstering_worker_skills = {"KEYMECH": 40, "KEYSTART": 40, "KEYINSU": 40, "KEYPAINTING": 40, "KEYEND": 40} # modify
         if painting_worker_skills is None:
-            painting_worker_skills = {"KEYFRAMES": 500, "KEYELEC": 500, "KEYSTUD": 500, "KEYFINISHING": 500} # modify
+            painting_worker_skills = {"KEYFRAMES": 50, "KEYELEC": 50, "KEYSTUD": 50, "KEYFINISHING": 50} # modify
         if behavior_files_dates is None:
             behavior_files_dates = {"KEYSTART":[
     ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
@@ -448,7 +451,10 @@ class ConPro(mesa.Model):
         else:
             behavior_files = {key: self.ips_file+"_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
         if tasks_sequence is None:
-            tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
+            # tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
+            # tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"]}  # modify
+            tasks_sequence = {1: ["KEYSTART"], 2:["KEYFRAMES", "KEYMECH"]}  # modify
+
             # tasks_sequence = {1:["KEYSTART", "KEYFRAMES"]}#{1:["KEYSTART", "KEYFRAMES"], 2:['KEYMECH'], 3:['KEYELEC']} # , 2:['KEYMECH'], 3:['KEYELEC'], 4:["KEYINSU"],5:["KEYSTUD"], 6:["KEYPAINTING"], 7:["KEYFINISHING"], 8:["KEYEND"]}
         if drywalls_points is None:
             drywalls_points=[
@@ -457,14 +463,12 @@ class ConPro(mesa.Model):
             ] # modify
         # self.trades_tasks = trades_tasks
         # self.dwwz = dwwz
-        self.init_walk_speed = 0.5
         self.zones_dwwz_nwwz=zones_dwwz_nwwz
         self.painting_worker_skills = painting_worker_skills
         self.palstering_worker_skills = palstering_worker_skills
         self.behavior_files = behavior_files
         self.tasks_sequence = tasks_sequence
         self.completed_drywalls = 0
-        self.grids_per_meter = 8
         self.max_task_workers ={'KEYSTART':KEYSTART_max , 'KEYFRAMES':KEYFRAMES_max , 'KEYMECH':KEYMECH_max ,
                           'KEYELEC': KEYELEC_max,
                           'KEYINSU':KEYINSU_max , 'KEYSTUD':KEYSTUD_max , 'KEYPAINTING':KEYPAINTING_max ,
@@ -495,7 +499,6 @@ class ConPro(mesa.Model):
         self.project_startdate = project_startdate
         self.simulation_startdate = simulation_startdate
         self.current_datetime = simulation_startdate
-        self.today_minutes = 0
         self.running = running
         self.start_day = start_day
         self.workingday_minutes = workingday_minutes  # working minutes in one day
@@ -551,8 +554,8 @@ class ConPro(mesa.Model):
         self.zones = set()
         self.zones_colors = dict()
         self.visit_BR_first = False
-        self.arrival_zone_name = "elevator"
-        self.break_zone_name = "staircase"
+        self.arrival_zone_name = "s"
+        self.drywalls_lines = generate_drywall_points(self.drywalls_points)  # {"task_name":[points]}
         # initiate activation schedule
         self.schedule = mesa.time.RandomActivationByType(self)
         # initiate mesa grid class
@@ -589,18 +592,17 @@ class ConPro(mesa.Model):
                 "Idle": lambda m: get_idle(m),
                 "KEYSTART": lambda m: get_left(m, "KEYSTART"),
                 "KEYFRAMES": lambda m: get_left(m, "KEYFRAMES"),
-                "KEYMECH": lambda m: get_left(m, "KEYMECH"),
-                "KEYELEC": lambda m: get_left(m, "KEYELEC"),
-                "KEYINSU": lambda m: get_left(m, "KEYINSU"),
-                "KEYSTUD": lambda m: get_left(m, "KEYSTUD"),
-                "KEYPAINTING": lambda m: get_left(m, "KEYPAINTING"),
-                "KEYFINISHING": lambda m: get_left(m, "KEYFINISHING"),
-                "KEYEND": lambda m: get_left(m, "KEYEND"),
+                # "KEYMECH": lambda m: get_left(m, "KEYMECH"),
+                # "KEYELEC": lambda m: get_left(m, "KEYELEC"),
+                # "KEYINSU": lambda m: get_left(m, "KEYINSU"),
+                # "KEYSTUD": lambda m: get_left(m, "KEYSTUD"),
+                # "KEYPAINTING": lambda m: get_left(m, "KEYPAINTING"),
+                # "KEYFINISHING": lambda m: get_left(m, "KEYFINISHING"),
+                # "KEYEND": lambda m: get_left(m, "KEYEND"),
                 "scenario":lambda m: m.scenario,
                 "completed_in":lambda m:m.schedule.steps,
                 "current_datetime":lambda m:m.current_datetime,
                 "today":lambda m:m.today,
-                "today_minutes":lambda m:m.today_minutes
             },
 
             agent_reporters = {
@@ -635,7 +637,6 @@ class ConPro(mesa.Model):
         file_path = self.get_current_path('config.ini')
         with open(file_path, 'w') as configfile:
             config.write(configfile)
-
 
         # Create models from data
     def best_fit_distribution(self, data, bins=200, ax=None):
@@ -703,7 +704,6 @@ class ConPro(mesa.Model):
         y = dist.pdf(x, loc=loc, scale=scale, *arg)
         pdf = pd.Series(y, x)
         return pdf
-
     def get_pdfunc(self,worker_type, key, zone_type, data=[1, 2, 2, 2, 2, 3], plot=True, title="Durations in Possibly Working Zone",
                    x_title="Duration"):
         path = self.get_current_path('./plots/pdf{}-{}-{}.png'.format(worker_type, key, zone_type))
@@ -718,8 +718,6 @@ class ConPro(mesa.Model):
         plt.figure(figsize=(12, 8))
         ax = data.plot(kind='hist', bins=200, density=True, alpha=0.5,
                        color=list(matplotlib.rcParams['axes.prop_cycle'])[1]['color'])
-
-
         # Save plot limits
         dataYLim = ax.get_ylim()
 
@@ -1099,16 +1097,14 @@ class ConPro(mesa.Model):
         #     [[0, 0], [0, 10], "dry_wall5"],
         #     [[19, 12], [19, 14], "dry_wall5"]]  # modify
         # the loop should be over the tasks defiend in task file if line or lines found iin drywalls points then build the grids otherwise put only one point on zone locations
-
-
-        drywalls_lines = generate_drywall_points(self.drywalls_points) # {"task_name":[points]}
         filename = self.tasks_file
         df = pd.read_csv("ConPro/{}".format(filename), header=0, sep=';')
         df = df.set_index('task_name')
-        cols = filter_cols(df, filter_key="KEY") # list of tasks
+        # cols = filter_cols(df, filter_key="KEY") # list of tasks from tasks csv file # modify
+        cols = [value for value_list in self.tasks_sequence.values() for value in value_list]
         for df_index, row in df.iterrows():
             name = df_index
-            if df_index in drywalls_lines.keys():
+            if df_index in self.drywalls_lines.keys():
                 for name, points in drywalls_lines.items():
                     for index, point in enumerate(points):
                         zone = df.loc[name, "zone"].lower()
@@ -1186,27 +1182,27 @@ class ConPro(mesa.Model):
                     tasks[phase]["status"] = "pickable"
                     tasks[phase]["constraints"] = set()
                     self.task_id += 1
-                    drywall = Drywall(self.agent_id, self, pos=zone_pos, name=name, tasks=tasks, zone=zone_name,
-                                      hasStarted=False, current_workers=set())
-                    self.add_agent(drywall, drywall.pos)
-                    # self.update_xymap(drywall.pos, value=0)
-                    # keep track of dry_walls in the model
-                    self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
-                    self.drywalls_agents[name].append(drywall)
-                    # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
-                    # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
-                    # self.drywalls_in_zone[name].add()
-                    parent_zone = self.zones_agents[zone_name][0]
-                    zone = Zone(self.agent_id, self, pos=zone_pos, name=name, parent_zone=parent_zone)
-                    self.add_agent(zone, zone.pos)
-                    self.zones.add(name)
-                    # keep track of zones in the model
-                    self.zones_agents[name] = self.zones_agents.get(name, [])
-                    self.zones_agents[name].append(zone)
-                    self.number_of_drywalls += 1
-                    self.zones_dwwz_nwwz["wz"].append(
-                        parent_zone.name)  # zones that has work to be done are considered working zones
-                    parent_zone.working_zone = True
+                drywall = Drywall(self.agent_id, self, pos=zone_pos, name=name, tasks=tasks, zone=zone_name,
+                                  hasStarted=False, current_workers=set())
+                self.add_agent(drywall, drywall.pos)
+                # self.update_xymap(drywall.pos, value=0)
+                # keep track of dry_walls in the model
+                self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
+                self.drywalls_agents[name].append(drywall)
+                # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
+                # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
+                # self.drywalls_in_zone[name].add()
+                parent_zone = self.zones_agents[zone_name][0]
+                zone = Zone(self.agent_id, self, pos=zone_pos, name=name, parent_zone=parent_zone)
+                self.add_agent(zone, zone.pos)
+                self.zones.add(name)
+                # keep track of zones in the model
+                self.zones_agents[name] = self.zones_agents.get(name, [])
+                self.zones_agents[name].append(zone)
+                self.number_of_drywalls += 1
+                self.zones_dwwz_nwwz["wz"].append(
+                    parent_zone.name)  # zones that has work to be done are considered working zones
+                parent_zone.working_zone = True
 
         # for name, points in drywalls_lines.items():
         #     for index, point in enumerate(points):
@@ -1449,7 +1445,7 @@ class ConPro(mesa.Model):
         xymap_pd_ew = xymap_pd_ew.set_axis(range(xymap_pd_ew.shape[0], 0, -1), axis='index')
         xymap_pd_ew = xymap_pd_ew.applymap(str)
         init_route = xymap_pd_iw.combine(xymap_pd_ew, np.maximum)
-        
+
         # init_route = init_route.replace("1", 1)
         # init_route = init_route.replace("0", 0)
         init_route = init_route.applymap(lambda x: 1 if isinstance(x, str) and not x.isdigit() else x)
@@ -1567,10 +1563,14 @@ class ConPro(mesa.Model):
             for worker in workers:
                 if worker.status == self.arrival_zone_name and worker.intention == self.arrival_zone_name:
                     workersOut += 1
-
+                    print("workersOut", workersOut, numberOfWorkers, (self.current_datetime - self.this_day_start_date).seconds / 60, self.leave_time_max)
             if workersOut == numberOfWorkers:
                 self.current_datetime = self.current_datetime + timedelta(days=1)
                 self.current_datetime = self.current_datetime.replace(hour=self.start_hour, minute=0)
+            if (self.current_datetime - self.this_day_start_date).seconds / 60 >  self.leave_time_max:
+                self.current_datetime = self.current_datetime + timedelta(days=1)
+                self.current_datetime = self.current_datetime.replace(hour=self.start_hour, minute=0)
+
 
         if self.current_datetime.weekday() == 5:
             self.current_datetime = self.current_datetime + timedelta(days=2)
@@ -1616,10 +1616,10 @@ class ConPro(mesa.Model):
         if  len(self.palstering_worker_skills) > 6:
             scenario_name.append("-l")
 
-        if self.tasks_sequence == {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}:
+        if self.tasks_sequence == {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}: #modify
             scenario_name.append("-Q1")
 
-        elif self.tasks_sequence == {1: ["KEYSTART"]}:
+        elif self.tasks_sequence == {1: ["KEYSTART"]}: #modify
             scenario_name.append("-Q2")
 
         if self.one_behavior_file :
