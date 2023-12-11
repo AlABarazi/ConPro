@@ -156,13 +156,14 @@ class ConPro(mesa.Model):
     Agent-based simulation model for construction processes
     """
     agents_attributes = {Worker: [ "FullfillingIntention", "trade", "intentionExpire", "utilization","t_at_workplace", "t_at_workplace", "IntentionStartTime", "IntentionFullfilmentTime", "total_intentions", "t_at_site","selected_task_key", "drywall_name", "is_idle" ], Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["n_visitors","n_workers","n_trades"]}#,   ]}#, Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["get_current_trades"]} # "is_idle",  # ,
-    read_behavior_from_pickle = True
+    read_behavior_from_pickle = False
     pickle_file_path = "workers_behaviors_pickels/pickle.pkl"
     perform_data_fitting = True # Change to true if scenario require fitting (finding pdf again)
     pdf_size = 10000
     # end new
     width = 132  # width of csv grid files, modify
     height = 40  # height of csv grid files, modify
+    project_path = os.getcwd()
     pdf_to_execlude = [
     'levy_stable', # always execlude this
     'studentized_range', # always execlude this
@@ -399,45 +400,45 @@ class ConPro(mesa.Model):
         if zones_dwwz_nwwz is None:
             zones_dwwz_nwwz = {"wz":[], "nwz":[]}
         if palstering_worker_skills is None:#mofigy
-            palstering_worker_skills = {"KEYMECH": 40, "KEYSTART": 40, "KEYINSU": 40, "KEYPAINTING": 40, "KEYEND": 40} # modify
+            palstering_worker_skills = {"KEYMECH": 40, "KEYSTART": 40, "KEYINSU": 40, "KEYPAINTING": 40, "KEYEND": 40, "KEYFRAMES": 50, "KEYELEC": 50, "KEYSTUD": 50, "KEYFINISHING": 50} # modify
         if painting_worker_skills is None:
             painting_worker_skills = {"KEYFRAMES": 50, "KEYELEC": 50, "KEYSTUD": 50, "KEYFINISHING": 50} # modify
-        if behavior_files_dates is None:
+        if behavior_files_dates is None: #modify
             behavior_files_dates = {"KEYSTART":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),#modify
 ],
                                     "KEYFRAMES":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),#modify
 ],
                                     "KEYMECH":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
                                     "KEYELEC":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
                                     "KEYINSU":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
                                     "KEYSTUD":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
                                     "KEYPAINTING":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
                                     "KEYFINISHING":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
                                     "KEYEND":[
-    ('2010-01-01 08:00:00', '2022-01-01 12:00:00'),
-    ('2017-01-01 08:00:00', '2022-01-01 12:00:00'),
+    ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
+    ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ]
             } #modify
         # if trades_tasks is None:
@@ -446,14 +447,14 @@ class ConPro(mesa.Model):
         #      'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]}
 
         self.one_behavior_file = one_behavior_file
-        if behavior_files is None and self.one_behavior_file:
+        if behavior_files is None and self.one_behavior_file: 
             behavior_files = { key:self.ips_file+".csv".format(key) for key in list(painting_worker_skills.keys()) + list(palstering_worker_skills.keys())}
         else:
             behavior_files = {key: self.ips_file+"_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
         if tasks_sequence is None:
-            # tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
+            tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
             # tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"]}  # modify
-            tasks_sequence = {1: ["KEYSTART"], 2:["KEYFRAMES", "KEYMECH"]}  # modify
+            # tasks_sequence = {1: ["KEYSTART"], 2:["KEYFRAMES", "KEYMECH"]}  # modify
 
             # tasks_sequence = {1:["KEYSTART", "KEYFRAMES"]}#{1:["KEYSTART", "KEYFRAMES"], 2:['KEYMECH'], 3:['KEYELEC']} # , 2:['KEYMECH'], 3:['KEYELEC'], 4:["KEYINSU"],5:["KEYSTUD"], 6:["KEYPAINTING"], 7:["KEYFINISHING"], 8:["KEYEND"]}
         if drywalls_points is None:
@@ -685,7 +686,7 @@ class ConPro(mesa.Model):
 
             except Exception:
                 pass
-        plt.savefig("./plots/plot.png")
+        plt.savefig(self.project_path + "/plots/plot.png")
         return sorted(best_distributions, key=lambda x: x[2])
 
     def make_pdf(self, dist_name, params, size=10000, dist_obj=None):
@@ -928,13 +929,12 @@ class ConPro(mesa.Model):
             df['end_date'] = pd.to_datetime(df['end_date'])
             return df
 
-        behavior_data_file = filename
+        behavior_data_file = self.ips_file+".csv"
         # file_path = self.project_directory + behavior_data_file
         file_path = self.project_directory + behavior_data_file
         durations_dist = {}
-        df = pd.read_csv(file_path, sep=",")
+        df = pd.read_csv(file_path, sep=";")
         df = add_datetime_col(df)
-
         if self.change_resource_name:
             # rename resources
             resource_name = self.resource_name
@@ -988,6 +988,8 @@ class ConPro(mesa.Model):
                        value < self.ignored_durations_max and value > self.ignored_durations_min]
             nwz_data = [value for nwz_key in nwz for value in durations_dist[nwz_key] if
                         value < self.ignored_durations_max and value > self.ignored_durations_min]
+            print("wz_data", wz_data)
+            print("nwz_data", wz_data)
             pdf_wz, dst_st_wz, best_dist_wz, best_distibutions_wz, pdf_name_wz, params_wz = self.get_pdfunc(worker_type, key, "wz", wz_data)
             pdf_nwz, dst_st_nwz, best_dist_nwz, best_distibutions_nwz, pdf_name_nwz, params_nwz = self.get_pdfunc(
                  worker_type, key, "nwz",nwz_data)
@@ -1034,7 +1036,7 @@ class ConPro(mesa.Model):
                 pickle.dump(pickle_dic, f)
 
 
-
+        print (type(i) for i in nwz_wz_pdfs)
         return task_porb, durations_dist, activities, wz_nwz_prob,nwz_wz_pdfs
 
     def init_agents(self):
@@ -1376,7 +1378,7 @@ class ConPro(mesa.Model):
             x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 cell_content = zone_key[self.height - 1 - y, x].lower()
-                print (cell_content, "cell_content ")
+                # print (cell_content, "cell_content ")
                 if cell_content!= "0" and cell_content!= "1":
                     cell_content = cell_content.lower()
                     zone_label = ZoneLabel(self.agent_id, self, (x-1, y), name=cell_content)
@@ -1528,7 +1530,7 @@ class ConPro(mesa.Model):
         start = self.to_findpatharrayxy(start[0], start[1])
         end = self.to_findpatharrayxy(end[0], end[1])
         start = self.gridd.node(start[0], start[1])
-        print (end[0],end[1], self.gridd )
+        # print (end[0],end[1], self.gridd )
         end = self.gridd.node(end[0], end[1])
         finder = AStarFinder(diagonal_movement=DiagonalMovement.always)
         path, runs = finder.find_path(start, end, self.gridd)

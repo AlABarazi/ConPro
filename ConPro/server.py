@@ -17,7 +17,7 @@ params_list = ["w_presence", "n_plastering_workers", "n_painting_workers", "zone
                "KEYSTART_max","KEYFRAMES_max","KEYMECH_max","KEYELEC_max", "KEYINSU_max", "KEYSTUD_max", "KEYPAINTING_max",  "KEYFINISHING_max",
                "KEYEND_max"]
 
-model_params = {key:(mesa.visualization.NumberInput( key, value=10)) for key in params_list }
+model_params = {key:(mesa.visualization.NumberInput( key, value=1)) for key in params_list }
 model_params["w_presence"] = mesa.visualization.NumberInput( "w_presence", value=0) # 1500000 1.5 sec # 15000000 15 sec
 model_params["work_duration"] = mesa.visualization.NumberInput( "work_duration", value=1.5) # 1500000 1.5 sec # 15000000 15 sec
 model_params["work_duration_min"] = mesa.visualization.NumberInput( "work_duration_min", value=1) # 1500000 1.5 sec # 15000000 15 sec
