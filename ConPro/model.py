@@ -11,7 +11,7 @@ from datetime import datetime
 from configparser import ConfigParser
 import warnings
 import pandas as pd
-import scipy.stats as st
+import scipy.stats as scipy_st
 import statsmodels.api as sm
 from scipy.stats._continuous_distns import _distn_names
 import matplotlib.pyplot as plt
@@ -27,10 +27,10 @@ from .agent_externalwall import ExternalWall
 from .agent_innerwall import InnerWall
 from .agent_route import Route
 from .agent_worker import Worker
-from .agent_drywall import Drywall
+from .agent_bim_element import Bim_element
 from .agent_zone import Zone
 from .agent_zone_label import ZoneLabel
-from .agent_dummy_drywall import DummyDrywall
+from .agent_dummy_bim_element import DummyBim_element
 from .init_read_tasks import filter_cols, read_task
 import pickle
 
@@ -38,13 +38,13 @@ config = ConfigParser()
 
 # from .init_data_read_tasks import read_tasks
 
-def generate_drywall_points(drywalls_points = [
+def generate_bim_element_points(bim_elements_points = [
         ]
 ):
     """
     create dry walls from dictionary
      input :
-    drywalls_points = [
+    bim_elements_points = [
     [[34,33],[43,33], "D1"],
     [[43,33],[43,38], "D1"],
     # [[65,33],[65,38], "D2"],
@@ -57,7 +57,7 @@ def generate_drywall_points(drywalls_points = [
     :return:
     """
     result = {}
-    for line in drywalls_points:
+    for line in bim_elements_points:
         st, end, key = line[0], line[1], line[2]  # [34,33],[43,33]
         created_grids = result.get(key, set())
         index_to_increase = 1 if st[0] == end[0] else 0
@@ -90,7 +90,7 @@ def get_attribute(agent, class_type, method_or_attribute_name):
     :param name:
     :return: the results of object method
     """
-    if isinstance(agent, class_type):
+    if class_type == "any" or isinstance(agent, class_type):
         result = getattr(agent, method_or_attribute_name)
         if hasattr(agent, method_or_attribute_name) and not callable(result):
             # return attribute
@@ -100,7 +100,6 @@ def get_attribute(agent, class_type, method_or_attribute_name):
             return result
         else:#if attribute is method
             # if it's not attribute then it's a function
-            # print ("method", method_or_attribute_name)
             # import time
             # time.sleep(1)
             f = methodcaller(method_or_attribute_name)# , element if you need to pass variable to method
@@ -127,10 +126,10 @@ def get_left(model, key):
     """
     amount_left = []
     tasks_keys = flatten(model.tasks_sequence.values())
-    for drywalls_list in model.drywalls_agents.values():
-        for drywall in drywalls_list:
+    for bim_elements_list in model.bim_elements_agents.values():
+        for bim_element in bim_elements_list:
             if key in  tasks_keys:
-                amount_left.append(drywall.tasks[key]['amount'])
+                amount_left.append(bim_element.tasks[key]['amount'])
     return sum(amount_left)
     
 def get_idle(model):
@@ -155,15 +154,85 @@ class ConPro(mesa.Model):
     """
     Agent-based simulation model for construction processes
     """
-    agents_attributes = {Worker: [ "FullfillingIntention", "trade", "intentionExpire", "utilization","t_at_workplace", "t_at_workplace", "IntentionStartTime", "IntentionFullfilmentTime", "total_intentions", "t_at_site","selected_task_key", "drywall_name", "is_idle" ], Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["n_visitors","n_workers","n_trades"]}#,   ]}#, Drywall: ["hasStarted", "current_task_key", "current_trade"], Zone:["get_current_trades"]} # "is_idle",  # ,
-    read_behavior_from_pickle = False
-    pickle_file_path = "workers_behaviors_pickels/pickle.pkl"
+    #setup
+    Scenario1 = {
+        "n_furniture_workers": [3],
+        "n_painting_workers": [0],
+        "zone_max_worker": [10],
+        "zone_max_trades": [10],
+        "zone_max_visitor": [10000],
+        "work_duration": [20],
+        "work_duration_min": [10],
+        "work_duration_max": [120],
+        # "tasks_sequence" : [{1: ["KEYSTART"]}],
+        # "tasks_sequence": [{1: ["TASK1", "TASK2"], 2: ['TASK3'], 3: ['TASK4']}],
+        "simulation_speed_microsec": [150000000],  # 1500000 1.5 sec   #15000000 15 sec
+        "one_behavior_file": [True],
+        "furniture_worker_skills": [
+            {"TASK1": 4, "TASK2": 4, "TASK3": 4, "TASK3": 4, "TASK4": 4, "TASK5": 4, "TASK6": 4, "TASK7": 4, "TASK8": 4,
+             "TASK9": 4, "TASK10": 4}],
+        "painting_worker_skills": [
+            {"TASK1": 4, "TASK2": 4, "TASK3": 4, "TASK3": 4, "TASK4": 4, "TASK5": 4, "TASK6": 4, "TASK7": 4, "TASK8": 4,
+             "TASK9": 4, "TASK10": 4}],
+        # "drywalls_points": [
+        #     [
+        #     # [[3,118],[19,118], "dry_wall5"],
+        #     # [[19,119],[19,127], "dry_wall5"],
+        #     [[2, 23], [12, 23], "dry_wall3"],
+        #     [[12, 11], [12, 22], "dry_wall3"],
+        #     # [[11, 11], [2, 11], "dry_wall4"],
+        #     # [[12, 10], [15, 10], "dry_wall1"],
+        #     #  [[43,33],[43,38], "dry_wall7"]]
+        # ]
+        # ],
+    }
+    model_tasks_grids = False # show bim elements on the grid False mean no
     perform_data_fitting = True # Change to true if scenario require fitting (finding pdf again)
+    ignored_durations_min = 600  # modify seconds will ignore data poiints less than ignored_durations_min
+    ignored_durations_max = 10000000  # modify seconds will ignore data poiints more than ignored_durations_max  6 hours is 21600 seconds
+    agents_attributes = {
+        Worker: [ "FullfillingIntention", "trade", "intentionExpire", "utilization","t_at_workplace",
+                  "t_at_workplace", "IntentionStartTime", "IntentionFullfilmentTime", "total_intentions", "t_at_site",
+                  "selected_task_key", "bim_element_name", "is_idle", "status", "intention", "name", "duration", "finish", "start",
+                  "start_datetime", "finish_datetime"],
+        Bim_element: ["hasStarted", "current_task_key", "current_trade", "name","start_date", "end_date", "actual_start", "actual_end"],
+        Zone:["n_visitors","n_workers","n_trades", "name"]}#,   ]}#, Bim_element: ["hasStarted", "current_task_key", "current_trade"], Zone:["get_current_trades"]} # "is_idle",  # ,
+    read_behavior_from_pickle = True
+    show_pdf_plots = False
+    pickle_file_path = "workers_behaviors_pickels/pickle.pkl"
     pdf_size = 10000
     # end new
     width = 132  # width of csv grid files, modify
     height = 40  # height of csv grid files, modify
     project_path = os.getcwd()
+    project_directory = "ConPro/"
+    x_init_worker = 10 # initial x coordinations of worker
+    y_init_worker = 2 # initial y coordinations of worker
+    init_worker_zone = "s" # modify . the name of the zone where the worker is
+    weekdays = { 0:"Monday",1:"Tuesday", 2:"Wednesday", 3:"Thursday",4:"Friday",5:"Saturday",6:"Sunday"}
+    # grids_size = 16  # 16 grids per square meter
+    params_list = ["w_presence", "n_furniture_workers", "n_painting_workers", "zone_max_worker", "zone_max_trades",
+                   "TASK1_max", "TASK2_max", "TASK3_max", "TASK4_max", "TASK5_max", "TASK6_max",
+                   "TASK7_max",
+                   "TASK10_max",
+                   "TASK9_max"]
+    trades_tasks_keys = {'TASK1': ["furniture"], 'TASK2': ["painting"], 'TASK3': ["furniture"],
+                    'TASK4': ["painting"],
+                    'TASK5': ["furniture"], 'TASK6': ["painting"], 'TASK7': ["furniture"],
+                    'TASK10': ["painting"], 'TASK9': ["furniture"]} # modify # these are the tasks that will be included in siumlation
+    colors = {"furniture": "green", "painting": "red"} # modify
+    change_resource_name = True # rename resource names in the received IPS file to new names to match what is defined in model
+    change_gateways_zones = False# rename gatways in the received IPS file to new names to match what is defined in model
+    inner_walls_has_file = False
+    is_tasks_line = False
+    tasks_file = "init_tasks_comma.csv"
+    init_walk_speed = 0.5  # modify worker speed
+    grids_per_meter = 2  # modify, current number of grids per meter, should be automated when the grid generation from ifc is automated
+    tasks_sequence = {1: ["TASK1", "TASK2", 'TASK4', "TASK5", "TASK6", "TASK7",  "TASK9"]} # "TASK10",
+    # tasks_sequence = {1: ["TASK1", "TASK2"], 2: ['TASK3'], 3: ['TASK4'], 4: ["TASK5"], 5: ["TASK6"],6: ["TASK7"], 7: ["TASK10"], 8: ["TASK9"]} # modify
+    # tasks_sequence = {1: ["TASK1", "TASK2"]}  # modify
+    # tasks_sequence = {1: ["TASK1"], 2:["TASK2", "TASK3"]}  # modify
+    # tasks_sequence = {1:["TASK1", "TASK2"]}#{1:["TASK1", "TASK2"], 2:['TASK3'], 3:['TASK4']} # , 2:['TASK3'], 3:['TASK4'], 4:["TASK5"],5:["TASK6"], 6:["TASK7"], 7:["TASK10"], 8:["TASK9"]}
     pdf_to_execlude = [
     'levy_stable', # always execlude this
     'studentized_range', # always execlude this
@@ -274,32 +343,13 @@ class ConPro(mesa.Model):
     # 'rel_breitwigner'
 ]
     resource_name = {
-        "KALUSTE 2": "plastering",
-        "KALUSTE 1": "plastering",
-        "KALUSTE 3": "plastering"
+        "KALUSTE 2": "furniture",
+        "KALUSTE 1": "painting",
+        "KALUSTE 3": "furniture"
     } #modify changing names in ips file
     gateways_zones = {0: 'Storage201', 32: 'A4', 33: "A4", 35: "Elevator",
                       36: "A7", 37: "A6", 38: "Storage204", 39: "A8", 40: "Corridor",
-                      41: "A3", 42: "Staircase", 43: "A5"}
-
-    project_directory = "ConPro/"
-    x_init_worker = 10 # initial x coordinations of worker
-    y_init_worker = 2 # initial y coordinations of worker
-    init_worker_zone = "s" # modify . the name of the zone where the worker is
-    weekdays = { 0:"Monday",1:"Tuesday", 2:"Wednesday", 3:"Thursday",4:"Friday",5:"Saturday",6:"Sunday"}
-    # grids_size = 16  # 16 grids per square meter
-    trades_tasks_keys = {'KEYSTART': ["plastering"], 'KEYFRAMES': ["painting"], 'KEYMECH': ["plastering"],
-                    'KEYELEC': ["painting"],
-                    'KEYINSU': ["plastering"], 'KEYSTUD': ["painting"], 'KEYPAINTING': ["plastering"],
-                    'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]} # modify # these are the tasks that will be included in siumlation
-    colors = {"plastering": "green", "painting": "red"} # modify
-    change_resource_name = True # rename resource names in the received IPS file to new names to match what is defined in model
-    change_gateways_zones = False
-    inner_walls_has_file = False
-    is_tasks_line = False
-    tasks_file = "init_tasks_comma.csv"
-    init_walk_speed = 0.5  # modify worker speed
-    grids_per_meter = 2  # modify, current number of grids per meter
+                      41: "A3", 42: "Staircase", 43: "A5"} #modify changing names in ips file
 
     def __init__(
         self,
@@ -308,7 +358,7 @@ class ConPro(mesa.Model):
         simulation_speed_microsec=150000000,  # 1500000 1.5sec # 15000000 15 sec
         w_presence=1,  # will be considered working only when presence = 1 minute, Zhou threshold
         ips_file="init_IPSS",  # modify, IPS file for resources
-        n_plastering_workers=1,
+        n_furniture_workers=1,
         n_painting_workers=1,
         project_startdate=datetime(2021, 12, 31, 7, 0, 0, 0),
         simulation_startdate=datetime(2022, 5, 16, 6, 0, 0, 0),  # site B (2021, 10, 11), site A electrician 2022-05-16
@@ -363,30 +413,30 @@ class ConPro(mesa.Model):
         zone_max_worker=1,
         zone_max_trades=1,
         zone_max_visitor=10000,
-        KEYSTART_max=2,
-        KEYFRAMES_max=2,
-        KEYMECH_max=2,
-        KEYELEC_max=2,
-        KEYINSU_max=2,
-        KEYSTUD_max=2,
-        KEYPAINTING_max=2,
-        KEYFINISHING_max=2,
-        KEYEND_max=2,
-        drywall_max_workers=10000000000000,
+        TASK1_max=2,
+        TASK2_max=2,
+        TASK3_max=2,
+        TASK4_max=2,
+        TASK5_max=2,
+        TASK6_max=2,
+        TASK7_max=2,
+        TASK10_max=2,
+        TASK9_max=2,
+        bim_element_max_workers=10000000000000,
         work_duration=1,
         work_duration_min=0.5,
         work_duration_max=1.2,
-        drywalls_points=None,
+        bim_elements_points=None,
             # trades_tasks=None,
         tasks_sequence=None,
-        palstering_worker_skills=None,
+        furniture_worker_skills=None,
         painting_worker_skills=None,
         one_behavior_file=True,
-        ignored_durations_min=0,
-        ignored_durations_max=180,
         zones_dwwz_nwwz=None,
-        behavior_files_dates=None
+        behavior_files_dates=None,
+        task_piking_strategy = "first" # "random", "closest", "one with minimal total work", "one with minimal varaity", "less congested"
     ):
+        self.task_piking_strategy = task_piking_strategy
         self.break_zone_name = "s"
         self.current_floor = "5" # modify, current floor plan file
         self.filename_ew = "init_floor{}.csv".format(self.current_floor) # modify, layout file for external walls, and zones
@@ -395,70 +445,58 @@ class ConPro(mesa.Model):
             self.filename_iw = self.filename_ew
         self.ips_file = ips_file
         self.w_presence = w_presence
-        self.ignored_durations_min=ignored_durations_min
-        self.ignored_durations_max=ignored_durations_max
         if zones_dwwz_nwwz is None:
             zones_dwwz_nwwz = {"wz":[], "nwz":[]}
-        if palstering_worker_skills is None:#mofigy
-            palstering_worker_skills = {"KEYMECH": 40, "KEYSTART": 40, "KEYINSU": 40, "KEYPAINTING": 40, "KEYEND": 40, "KEYFRAMES": 50, "KEYELEC": 50, "KEYSTUD": 50, "KEYFINISHING": 50} # modify
+        if furniture_worker_skills is None:#mofigy
+            furniture_worker_skills = {"TASK3": 4, "TASK1": 4, "TASK5": 4, "TASK7": 4, "TASK9": 4, "TASK2": 4, "TASK4": 4, "TASK6": 4, "TASK10": 4} # modify # u/h
         if painting_worker_skills is None:
-            painting_worker_skills = {"KEYFRAMES": 50, "KEYELEC": 50, "KEYSTUD": 50, "KEYFINISHING": 50} # modify
+            painting_worker_skills = {"TASK2": 1, "TASK4": 1, "TASK6": 1, "TASK10": 1} # modify
         if behavior_files_dates is None: #modify
-            behavior_files_dates = {"KEYSTART":[
+            behavior_files_dates = {"TASK1":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),#modify
 ],
-                                    "KEYFRAMES":[
+                                    "TASK2":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),#modify
 ],
-                                    "KEYMECH":[
+                                    "TASK3":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
-                                    "KEYELEC":[
+                                    "TASK4":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
-                                    "KEYINSU":[
+                                    "TASK5":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
-                                    "KEYSTUD":[
+                                    "TASK6":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
-                                    "KEYPAINTING":[
+                                    "TASK7":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
-                                    "KEYFINISHING":[
+                                    "TASK10":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ],
-                                    "KEYEND":[
+                                    "TASK9":[
     ('2010-01-01 08:00:00', '2100-01-01 12:00:00'),
     ('2017-01-01 08:00:00', '2100-01-01 12:00:00'),
 ]
             } #modify
-        # if trades_tasks is None:
-        #     trades_tasks = {'KEYSTART': ["plastering"], 'KEYFRAMES': ["painting"], 'KEYMECH': ["plastering"], 'KEYELEC': ["painting"],
-        #      'KEYINSU': ["plastering"], 'KEYSTUD': ["painting"], 'KEYPAINTING': ["plastering"],
-        #      'KEYFINISHING': ["painting"], 'KEYEND': ["plastering"]}
-
+        self.all_tasks = [value for value_list in self.tasks_sequence.values() for value in value_list]
         self.one_behavior_file = one_behavior_file
-        if behavior_files is None and self.one_behavior_file: 
-            behavior_files = { key:self.ips_file+".csv".format(key) for key in list(painting_worker_skills.keys()) + list(palstering_worker_skills.keys())}
+        if behavior_files is None and self.one_behavior_file:
+            behavior_files = { key:self.ips_file+".csv".format(key) for key in self.all_tasks}
         else:
-            behavior_files = {key: self.ips_file+"_{key}.csv".format(key) in self.trades_tasks_keys.keys()}
-        if tasks_sequence is None:
-            tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]} # modify
-            # tasks_sequence = {1: ["KEYSTART", "KEYFRAMES"]}  # modify
-            # tasks_sequence = {1: ["KEYSTART"], 2:["KEYFRAMES", "KEYMECH"]}  # modify
-
-            # tasks_sequence = {1:["KEYSTART", "KEYFRAMES"]}#{1:["KEYSTART", "KEYFRAMES"], 2:['KEYMECH'], 3:['KEYELEC']} # , 2:['KEYMECH'], 3:['KEYELEC'], 4:["KEYINSU"],5:["KEYSTUD"], 6:["KEYPAINTING"], 7:["KEYFINISHING"], 8:["KEYEND"]}
-        if drywalls_points is None:
-            drywalls_points=[
+            behavior_files = {key: self.ips_file+"_{key}.csv".format(key) in self.all_tasks}
+        if bim_elements_points is None:
+            bim_elements_points=[
                 # [[0,0],[0,10], "dry_wall5"],
                 # [[19,12],[19,14], "dry_wall5"]
             ] # modify
@@ -466,26 +504,25 @@ class ConPro(mesa.Model):
         # self.dwwz = dwwz
         self.zones_dwwz_nwwz=zones_dwwz_nwwz
         self.painting_worker_skills = painting_worker_skills
-        self.palstering_worker_skills = palstering_worker_skills
+        self.furniture_worker_skills = furniture_worker_skills
         self.behavior_files = behavior_files
-        self.tasks_sequence = tasks_sequence
-        self.completed_drywalls = 0
-        self.max_task_workers ={'KEYSTART':KEYSTART_max , 'KEYFRAMES':KEYFRAMES_max , 'KEYMECH':KEYMECH_max ,
-                          'KEYELEC': KEYELEC_max,
-                          'KEYINSU':KEYINSU_max , 'KEYSTUD':KEYSTUD_max , 'KEYPAINTING':KEYPAINTING_max ,
-                          'KEYFINISHING':KEYFINISHING_max , 'KEYEND':KEYEND_max}
+        self.completed_bim_elements = 0
+        self.max_task_workers ={'TASK1':TASK1_max , 'TASK2':TASK2_max , 'TASK3':TASK3_max ,
+                          'TASK4': TASK4_max,
+                          'TASK5':TASK5_max , 'TASK6':TASK6_max , 'TASK7':TASK7_max ,
+                          'TASK10':TASK10_max , 'TASK9':TASK9_max}
         self.zone_max_worker = zone_max_worker
         self.zone_max_trades = zone_max_trades
         self.zone_max_visitor = zone_max_visitor
-        self.drywall_max_workers = drywall_max_workers
+        self.bim_element_max_workers = bim_element_max_workers
         self.one_zone_one_trade = one_zone_one_trade
         self.current_id = 0
         self.xymap_changed = True
         self.task_id = 1
-        # production rate KEYMECH is measured in u/h.
+        # production rate TASK3 is measured in u/h.
         self.workers = {
-                      "plastering":{"n":n_plastering_workers,"production_rate":palstering_worker_skills,
-                                    "behavior_files":behavior_files,"behavior_files_dates":behavior_files_dates, 'color':self.colors["plastering"]},
+                      "furniture":{"n":n_furniture_workers,"production_rate":furniture_worker_skills,
+                                    "behavior_files":behavior_files,"behavior_files_dates":behavior_files_dates, 'color':self.colors["furniture"]},
                       "painting":{"n":n_painting_workers, "production_rate":painting_worker_skills,
                                   "behavior_files":behavior_files,"behavior_files_dates":behavior_files_dates,
                                   "color":self.colors["painting"]},
@@ -493,7 +530,7 @@ class ConPro(mesa.Model):
         self.passed_working_time = start_day
         self.running = True
         self.agent_id = 0
-        self.drywalls_points = drywalls_points
+        self.bim_elements_points = bim_elements_points
         self.today = simulation_startdate.day
         self.start_hour = start_hour
         self.status = "before working hours"
@@ -511,7 +548,7 @@ class ConPro(mesa.Model):
         self.simulation_speed_microsec = simulation_speed_microsec  # 1500000 #1.5sec
         self.simulation_speed_sec = self.simulation_speed_microsec/1000000
         self.simulation_speed_min = self.simulation_speed_sec/60
-        self.simulation_speed_h = self.simulation_speed_sec / 24
+        self.simulation_speed_h = self.simulation_speed_min / 24
         self.wc_duration = wc_duration
         self.wc_duration_max = wc_duration_max
         self.wc_duration_min = wc_duration_min
@@ -556,62 +593,60 @@ class ConPro(mesa.Model):
         self.zones_colors = dict()
         self.visit_BR_first = False
         self.arrival_zone_name = "s"
-        self.drywalls_lines = generate_drywall_points(self.drywalls_points)  # {"task_name":[points]}
+        self.bim_elements_lines = generate_bim_element_points(self.bim_elements_points)  # {"task_name":[points]}
         # initiate activation schedule
         self.schedule = mesa.time.RandomActivationByType(self)
         # initiate mesa grid class
         self.grid = mesa.space.MultiGrid(self.width, self.height, torus=False)
         # initiate datacollector
-        self.workers_agents = dict() # {"plastering": [], "painting":[]} -> {trade:[workers]}
-        self.drywalls_agents = dict() # {"dry_wall1":[], "dry_wall2":} -> {}
-        self.dummy_drywalls_agents = dict()
+        self.workers_agents = dict() # {"furniture": [], "painting":[]} -> {trade:[workers]}
+        self.bim_elements_agents = dict() # {"dry_wall1":[], "dry_wall2":} -> {}
+        self.dummy_bim_elements_agents = dict()
         self.zones_agents = dict() #{"cooridor":[], "storage202":[]} -> {zone_name:[agents]}
-        self.available_tasks = dict() # {"KEYMECH":[dry_wall1, dry_wall2]} # added by drywall object
+        self.available_tasks = dict() # {"TASK3":[dry_wall1, dry_wall2]} # added by bim_element object
         self.not_available_tasks = dict()
         self.available_workers = self.workers_agents.copy()
-        self.tasks_stats = dict() # {"KEYMECH":{"total_amount":142, "completed_amount":50, "avg_production_rate":543(u/h)}}
-        self.number_of_drywalls = 0
-        self.drywalls_in_zone = dict()
+        self.tasks_stats = dict() # {"TASK3":{"total_amount":142, "completed_amount":50, "avg_production_rate":543(u/h)}}
+        self.number_of_bim_elements = 0
+        self.bim_elements_in_zone = dict()
         self.get_status()
         self.time_jump()
         self.set_zone_max_workers()
-
-
         #Intitialize/create intitial agents from grid files csv
         #
         self.init_agents()
         # self.init_read_worker_behavioral_data()
         self.determine_scenario_name()
-        # self.print_object_attributes(self) # model
-        # self.print_object_attributes(list(self.workers_agents.values())[0][0])  # model
-        # self.print_object_attributes(list(self.drywalls_agents.values())[0][0])  # model
         self.datacollector = mesa.DataCollector(
             model_reporters={
-                "get_seed": lambda m: ConPro.get_seed(m),
-                "Worker": lambda m: m.schedule.get_type_count(Worker),
-                "Utilization": lambda m: get_utilization(m),
-                "Idle": lambda m: get_idle(m),
-                "KEYSTART": lambda m: get_left(m, "KEYSTART"),
-                "KEYFRAMES": lambda m: get_left(m, "KEYFRAMES"),
-                # "KEYMECH": lambda m: get_left(m, "KEYMECH"),
-                # "KEYELEC": lambda m: get_left(m, "KEYELEC"),
-                # "KEYINSU": lambda m: get_left(m, "KEYINSU"),
-                # "KEYSTUD": lambda m: get_left(m, "KEYSTUD"),
-                # "KEYPAINTING": lambda m: get_left(m, "KEYPAINTING"),
-                # "KEYFINISHING": lambda m: get_left(m, "KEYFINISHING"),
-                # "KEYEND": lambda m: get_left(m, "KEYEND"),
+                "tot_n_tasks": lambda m: m.number_of_bim_elements,
+                "tot_n_tasks_completed": lambda m: m.completed_bim_elements,
+                "seed": lambda m: ConPro.get_seed(m),
+                "n_workers": lambda m: m.schedule.get_type_count(Worker),
+                "Utilization%": lambda m: get_utilization(m),
+                "Idle%": lambda m: get_idle(m),
+                "TASK1": lambda m: get_left(m, "TASK1"),
+                "TASK2": lambda m: get_left(m, "TASK2"),
+                "TASK3": lambda m: get_left(m, "TASK3"),
+                "TASK4": lambda m: get_left(m, "TASK4"),
+                "TASK5": lambda m: get_left(m, "TASK5"),
+                "TASK6": lambda m: get_left(m, "TASK6"),
+                "TASK7": lambda m: get_left(m, "TASK7"),
+                "TASK10": lambda m: get_left(m, "TASK10"),
+                "TASK9": lambda m: get_left(m, "TASK9"),
                 "scenario":lambda m: m.scenario,
-                "completed_in":lambda m:m.schedule.steps,
+                # "cu":lambda m:m.schedule.steps,
                 "current_datetime":lambda m:m.current_datetime,
                 "today":lambda m:m.today,
-            },
+                "this_day_start_date":lambda m:m.this_day_start_date,
 
+            },
             agent_reporters = {
-            # "Trade": lambda a: get_attribute(a, Worker, "trade"),
             f"{type.__name__}_{att}": (lambda t, a: lambda x: get_attribute(x, t, a))(type, att)
             for type in self.agents_attributes.keys()
             for att in self.agents_attributes[type]
         }
+
         )
         # print ({type.__name__ + "_" + att:("something", type, att) for type in self.agents_attributes.keys() for att in self.agents_attributes[type]})
 
@@ -640,7 +675,7 @@ class ConPro(mesa.Model):
             config.write(configfile)
 
         # Create models from data
-    def best_fit_distribution(self, data, bins=200, ax=None):
+    def best_fit_distribution(self, data, bins=200, ax=None, path=""):
         """Model data by finding best fit distribution to data"""
         # Get histogram of original data
         y, x = np.histogram(data, bins=bins, density=True)
@@ -651,9 +686,7 @@ class ConPro(mesa.Model):
 
         # Estimate distribution parameters from data
         for ii, distribution in enumerate([d for d in _distn_names if not d in self.pdf_to_execlude]):
-
-            # print("{:>3} / {:<3}: {}".format(ii + 1, len(_distn_names), distribution))
-            distribution_obj = getattr(st, distribution)
+            distribution_obj = getattr(scipy_st, distribution)
 
             # Try to fit the distribution
             try:
@@ -686,14 +719,15 @@ class ConPro(mesa.Model):
 
             except Exception:
                 pass
-        plt.savefig(self.project_path + "/plots/plot.png")
+        #self.project_path + "/plots/plot.png"
+
         return sorted(best_distributions, key=lambda x: x[2])
 
-    def make_pdf(self, dist_name, params, size=10000, dist_obj=None):
+    def make_pdf(self, dist_name, params, dist_obj=None):
         """Generate distributions's Probability Distribution Function """
         # Separate parts of parameters
         if dist_obj == None:
-            dist = getattr(st, dist_name)
+            dist = getattr(scipy_st, dist_name)
         arg = params[:-2]
         loc = params[-2]
         scale = params[-1]
@@ -701,62 +735,64 @@ class ConPro(mesa.Model):
         start = dist.ppf(0.01, *arg, loc=loc, scale=scale) if arg else dist.ppf(0.01, loc=loc, scale=scale)
         end = dist.ppf(0.99, *arg, loc=loc, scale=scale) if arg else dist.ppf(0.99, loc=loc, scale=scale)
         # Build PDF and turn into pandas Series
-        x = np.linspace(start, end, size)
+        x = np.linspace(start, end, self.pdf_size)
         y = dist.pdf(x, loc=loc, scale=scale, *arg)
         pdf = pd.Series(y, x)
         return pdf
-    def get_pdfunc(self,worker_type, key, zone_type, data=[1, 2, 2, 2, 2, 3], plot=True, title="Durations in Possibly Working Zone",
+    def get_pdfunc(self,worker_type, key, zone_type, data=[1, 2, 2, 2, 2, 3], title="Durations in Possibly Working Zone",
                    x_title="Duration"):
         path = self.get_current_path('./plots/pdf{}-{}-{}.png'.format(worker_type, key, zone_type))
+        path_all = self.get_current_path('./plots/all_pdf_{}_{}_{}.png'.format(worker_type, key, zone_type))
         # data = pd.Series(sm.datasets.elnino.load_pandas().data.set_index('YEAR').values.ravel())
         data = pd.Series(data)
         matplotlib.rcParams['figure.figsize'] = (16.0, 12.0)
         matplotlib.style.use('ggplot')
         # numpy.random.choice(numpy.arange(1, 7), p=[0.1, 0.05, 0.05, 0.2, 0.4, 0.2])
         # Load data from statsmodels datasets
-
         # Plot for comparison
         plt.figure(figsize=(12, 8))
         ax = data.plot(kind='hist', bins=200, density=True, alpha=0.5,
                        color=list(matplotlib.rcParams['axes.prop_cycle'])[1]['color'])
         # Save plot limits
         dataYLim = ax.get_ylim()
-
         # Find best fit distribution
-        best_distibutions = self.best_fit_distribution(data, 200, ax)
-        plt.savefig(path)
+        best_distibutions = self.best_fit_distribution(data, 200, ax, path_all)
         best_dist = best_distibutions[0]
         pdf_name, params = best_dist[3], best_dist[1]
         # Make PDF with best params
-        pdf = self.make_pdf(best_dist[3], best_dist[1], size = self.pdf_size) # pdf_name, params
-
+        pdf = self.make_pdf(best_dist[3], best_dist[1]) # pdf_name, params
         # matplotlib.pyplot.show()
-        param_names = (best_dist[0].shapes + ', loc, scale').split(', ') if best_dist[0].shapes else ['loc',
-                                                                                                      'scale']
+        param_names = (best_dist[0].shapes + ', loc, scale').split(', ') if best_dist[0].shapes else ['loc',                                                                                           'scale']
         param_str = ', '.join(['{}={:0.2f}'.format(k, v) for k, v in zip(param_names, best_dist[1])])
         dist_str = '{}({})'.format(best_dist[0].name, param_str)
         five_bst_dist = []
         for dist in best_distibutions[:5]:
-            param_names = (dist[0].shapes + ', loc, scale').split(', ') if best_dist[0].shapes else ['loc', 'scale']
-            param_str = ', '.join(['{}={:0.2f}'.format(k, v) for k, v in zip(param_names, best_dist[1])])
-            five_bst_dist.append('{}({})'.format(best_dist[0].name, param_str))
-        if plot:
-            title = title + "{}-{}-{}".format(worker_type, key, zone_type)
-            # Update plots
-            ax.set_ylim(dataYLim)
-            ax.set_title(title)
-            ax.set_xlabel(x_title)
-            ax.set_ylabel('Frequency')
-            # Display
-            plt.figure(figsize=(12, 8))
-            ax = pdf.plot(lw=2, label='PDF', legend=True)
-            data.plot(kind='hist', bins=50, density=True, alpha=0.5, label='Data', legend=True, ax=ax)
-            ax.set_title(title + '\n' + dist_str)
-            ax.set_xlabel(x_title)
-            ax.set_ylabel('Frequency')
-            # matplotlib.pyplot.show(block=False)
-            plt.savefig(path)
+            param_names = (dist[0].shapes + ', loc, scale').split(', ') if dist[0].shapes else ['loc', 'scale']
+            param_str = ', '.join(['{}={:0.2f}'.format(k, v) for k, v in zip(param_names, dist[1])])
+            five_bst_dist.append('{}({})'.format(dist[0].name, param_str))
+        # print (five_bst_dist, "five_bst_dist")
+        title = title + "{}-{}-{}".format(worker_type, key, zone_type)
+        # Update plots
+        ax.set_ylim(dataYLim)
+        ax.set_title(title)
+        ax.set_xlabel(x_title)
+        ax.set_ylabel('Frequency')
+        # Display
+        plt.figure(figsize=(12, 8))
+        ax = pdf.plot(lw=2, label='PDF', legend=True)
+        data.plot(kind='hist', bins=50, density=True, alpha=0.5, label='Data', legend=True, ax=ax)
+        ax.set_title(title + '\n' + dist_str)
+        ax.set_xlabel(x_title)
+        ax.set_ylabel('Frequency')
+        # matplotlib.pyplot.show(block=False)
+        plt.savefig(path)
+        # Access all active figures and save them
+        for fig_num in  plt.get_fignums():
+            fig = plt.figure(fig_num)
+            fig.savefig(path_all if fig_num == 1 else path)
+        if self.show_pdf_plots:
             matplotlib.pyplot.show()
+        plt.close()
         return pdf, dist_str, best_dist, five_bst_dist, pdf_name, params
 
     def is_route_file_generated(self, filename="init_route.csv"):
@@ -764,10 +800,8 @@ class ConPro(mesa.Model):
         chek if the route file is already generated
         :return:
         """
-        # print (output_path)
         current_directory = os.getcwd()
         final_directory = os.path.join(current_directory, "ConPro",filename)
-        #    print (final_directory, os.path.exists(final_directory))
         if os.path.isfile(final_directory):
             return True
         else:
@@ -782,27 +816,24 @@ class ConPro(mesa.Model):
 
     def is_task_pickable(self, task):
         """
-        check if the task_key that assgined as avialbe by drywall can be considered avaialbe based on constrainets
+        check if the task_key that assgined as avialbe by bim_element can be considered avaialbe based on constrainets
         :return:
         """
         task["constraints"] = set()
         zone = self.zones_agents[task["zone_name"]][0]
-        drywall = self.drywalls_agents[task["drywall"]][0]
+        bim_element = self.bim_elements_agents[task["bim_element"]][0]
         if zone.is_trades_full() or zone.is_workers_full() or zone.is_visitors_full():
             task["constraints"].add("zone")
-            # # remove all drywalls in this zone from avaialbe
-            # print("availabe tasks", self.available_tasks, self.available_tasks[self.selected_task_key])
+            # # remove all bim_elements in this zone from avaialbe
             # self.remove_zone_works(zone.name)
-            # print("availabe tasks, after", self.available_tasks,
             #       self.available_tasks[self.selected_task_key])
-        if drywall.is_drywall_max_n_worker():  #
-            # remove this drywall from availabe
-            task["constraints"].add("drywall")
-            # self.remove_drywall(drywall.name)
-        if drywall.is_task_max_n_worker(task):
+        if bim_element.is_bim_element_max_n_worker():  #
+            # remove this bim_element from availabe
+            task["constraints"].add("bim_element")
+            # self.remove_bim_element(bim_element.name)
+        if bim_element.is_task_max_n_worker(task):
             task["constraints"].add("task")
         if task["constraints"]:
-            # print (task["task_id"],"task is not pickable", task["constraints"], task)
             return False
         else:
             task["constraints"] = set()
@@ -832,7 +863,7 @@ class ConPro(mesa.Model):
         This can be used to see the content of each object/agent for testing porpuses mainly when intialization
         :param object: the object that you want to print all the attributes for
         """
-        print(len(dir(object)) - 25)
+        #print(len(dir(object)) - 25)
         # for attribute in dir(object):
         #     print(attribute, getattr(object, attribute))
 
@@ -862,7 +893,7 @@ class ConPro(mesa.Model):
         """
         return math.isclose(value, value1, rel_tol=rel_to)
 
-    def init_read_worker_behavioral_data(self, filename="init_IPS.csv", worker_type="painting",key="KEYMECH",
+    def init_read_worker_behavioral_data(self, filename="init_IPS.csv", worker_type="painting",key="TASK3",
                                          datetime_ranges = [('2000-01-01 08:00:00', '2100-01-01 12:00:00'),('2000-01-01 08:00:00', '2100-01-01 12:00:00')] ):
         """
         Read behaviroal data for each trade worker
@@ -958,6 +989,10 @@ class ConPro(mesa.Model):
                 for start_datetime, end_datetime in datetime_ranges
             ), axis=1)
         ]
+        # todo: better way to model worker behavior based on identify task type, task start and finish time using computer vision and ips (data fusion)
+
+        #since we don't know Activities, we consider gateways instead -> activities = gateways
+        # instead to modeling the beahvior based on activities we model the beahvior based on spaital presence
         a = df.groupby('Gateway').count()
         Activities_counts = df['Gateway'].value_counts()
         Activities_counts_dic = dict(Activities_counts)
@@ -976,23 +1011,25 @@ class ConPro(mesa.Model):
         # total_seconds = duration.second + duration.minute * 60 + duration.hour * 3600
         # Define a filtering function
         # df['duration_seconds'] = df['Durations'].apply(convert_durations_to_seconds)
-        df['duration_seconds'] = df['Durations'] * 60
+        df['duration_seconds'] = df['Durations(min)'] * 60
         for Activity in Activities_counts_dic.keys():
             Work_Preparation = df[df["Gateway"] == Activity]
             durations_dist[Activity.lower()] = list(Work_Preparation['duration_seconds'])
         task_porb = Activities_counts_dic_w
         config_file_path = self.get_current_path("config.ini")
         config.read(config_file_path, encoding='utf-8-sig')
+        # print (durations_dist, wz, nwz)
         if self.perform_data_fitting: # not self.is_config_set()
             wz_data = [value for wz_key in wz for value in durations_dist[wz_key] if
                        value < self.ignored_durations_max and value > self.ignored_durations_min]
             nwz_data = [value for nwz_key in nwz for value in durations_dist[nwz_key] if
                         value < self.ignored_durations_max and value > self.ignored_durations_min]
-            print("wz_data", wz_data)
-            print("nwz_data", wz_data)
             pdf_wz, dst_st_wz, best_dist_wz, best_distibutions_wz, pdf_name_wz, params_wz = self.get_pdfunc(worker_type, key, "wz", wz_data)
-            pdf_nwz, dst_st_nwz, best_dist_nwz, best_distibutions_nwz, pdf_name_nwz, params_nwz = self.get_pdfunc(
+            if nwz_data:
+                pdf_nwz, dst_st_nwz, best_dist_nwz, best_distibutions_nwz, pdf_name_nwz, params_nwz = self.get_pdfunc(
                  worker_type, key, "nwz",nwz_data)
+            else :
+                pdf_nwz, dst_st_nwz, best_dist_nwz, best_distibutions_nwz, pdf_name_nwz, params_nwz = pdf_wz, dst_st_wz, best_dist_wz, best_distibutions_wz, pdf_name_wz, params_wz
             # read config.ini file
             # change config.ini values
 
@@ -1034,9 +1071,6 @@ class ConPro(mesa.Model):
             pickle_dic[worker_type + key] = [task_porb, durations_dist, activities, wz_nwz_prob, nwz_wz_pdfs]
             with open(pickle_file_path, 'wb') as f:
                 pickle.dump(pickle_dic, f)
-
-
-        print (type(i) for i in nwz_wz_pdfs)
         return task_porb, durations_dist, activities, wz_nwz_prob,nwz_wz_pdfs
 
     def init_agents(self):
@@ -1055,7 +1089,7 @@ class ConPro(mesa.Model):
         # self.init_route_agents()
         self.init_xymap()
         self.init_worker_agents()
-        self.intit_drywalls()
+        self.intit_bim_elements()
         self.init_zones_labels_agents()
 
     def init_worker_agents(self, filename="init_behavior_file.csv" ):
@@ -1065,62 +1099,59 @@ class ConPro(mesa.Model):
         :return:
         """
         for worker_type, worker_info in self.workers.items():
-
+            n = 0
             for n_workers in range(worker_info['n']):
+                n+=1
                 point = self.zones_agents[self.init_worker_zone][0].pos
                 #x, y = self.x_init_worker, self.y_init_worker
                 #point = (x, y)
                 # production rate is given in u/h
                 production_rate_step = {key:production_rate*self.simulation_speed_h for key, production_rate in worker_info["production_rate"].items()}
-                worker = Worker(self.agent_id, self, point, trade=worker_type,  production_rate=production_rate_step,
-                                behavior_files=worker_info["behavior_files"], color=worker_info["color"], arrival=0 )
+                worker = Worker(self.agent_id, self, point, name=worker_type+str(n),trade=worker_type,  production_rate=production_rate_step,
+                                behavior_files=worker_info["behavior_files"], color=worker_info["color"], arrival=0)
                 behaviors_by_key = dict()
-                # print(worker_type)
                 for key in worker_info["behavior_files"].keys():
                     task_porb, durations_dist, activities, wz_nwz_prob,nwz_wz_pdfs = self.init_read_worker_behavioral_data(worker_info["behavior_files"][key],worker_type,key,
                                                                                                                            worker_info["behavior_files_dates"][key] )
                     behaviors_by_key[key] = {"task_porb":task_porb, "durations_dist":durations_dist, "activities":activities, "wz_nwz_prob":wz_nwz_prob, "nwz_wz_pdfs":nwz_wz_pdfs}
                 worker.behaviors_by_key = behaviors_by_key
-                # print ("worker_behaviors_by_key", behaviors_by_key)
                 self.add_agent(worker, worker.pos) # to grid and scheduale
                 # add workers to dictionary to keep track of them, access them
                 self.workers_agents[worker_type] = self.workers_agents.get(worker_type, [])
                 self.workers_agents[worker_type].append(worker)
-                # print(worker.trade, worker.behaviors_by_key.keys())
         self.perform_data_fitting = False
 
-    def intit_drywalls(self):
+    def intit_bim_elements(self):
         """
-        create drywalls grids agents
+        create bim_elements grids agents
         :return:
         """
         #todo: add task id, attribute if task aquired
-        # self.drywalls_points = [
+        # self.bim_elements_points = [
         #     [[0, 0], [0, 10], "dry_wall5"],
         #     [[19, 12], [19, 14], "dry_wall5"]]  # modify
-        # the loop should be over the tasks defiend in task file if line or lines found iin drywalls points then build the grids otherwise put only one point on zone locations
+        # the loop should be over the tasks defiend in task file if line or lines found iin bim_elements points then build the grids otherwise put only one point on zone locations
         filename = self.tasks_file
         df = pd.read_csv("ConPro/{}".format(filename), header=0, sep=';')
         df = df.set_index('task_name')
-        # cols = filter_cols(df, filter_key="KEY") # list of tasks from tasks csv file # modify
-        cols = [value for value_list in self.tasks_sequence.values() for value in value_list]
+        # self.all_tasks = filter_cols(df, filter_key="KEY") # list of tasks from tasks csv file # modify
         for df_index, row in df.iterrows():
             name = df_index
-            if df_index in self.drywalls_lines.keys():
-                for name, points in drywalls_lines.items():
+            if df_index in self.bim_elements_lines.keys():
+                for name, points in bim_elements_lines.items():
                     for index, point in enumerate(points):
                         zone = df.loc[name, "zone"].lower()
                         zone_pos = self.zones_agents[zone][0].pos
-                        tasks = {key: {} for key in cols}
-                        for phase in cols:
-                            tasks[phase]["amount"] = df.loc[name, phase]
-                            tasks[phase]["start_date"] = df.loc[name, "start_date"]
-                            tasks[phase]["end_date"] = df.loc[name, "end_date"]
+                        tasks = {key: {} for key in self.all_tasks}
+                        for phase in self.all_tasks:
+                            tasks[phase]["amount"] = float(df.loc[name, phase])
+                            tasks[phase]["start_date"] = datetime.strptime(df.loc[name, "start_date"], "%d.%m.%Y") + timedelta(hours=5)
+                            tasks[phase]["end_date"] = datetime.strptime(df.loc[name, "end_date"], "%d.%m.%Y") + timedelta(hours=5)
                             tasks[phase]["task_id"] = self.task_id
-                            tasks[phase]["drywall_id"] = self.agent_id
+                            tasks[phase]["bim_element_id"] = self.agent_id
                             tasks[phase]["aquired"] = False
                             tasks[phase]["pos"] = point
-                            tasks[phase]["drywall"] = name
+                            tasks[phase]["bim_element"] = name
                             tasks[phase]["finished"] = False
                             tasks[phase]["zone_name"] = zone
                             tasks[phase]["zone_pos"] = zone_pos
@@ -1131,18 +1162,17 @@ class ConPro(mesa.Model):
                             tasks[phase]["status"] = "pickable"
                             tasks[phase]["constraints"] = set()
                             self.task_id += 1
-                        if index == 0:  # create only one grid for drywall other grids are dummy drywalls (copy the state of the drywall)
-
-                            drywall = Drywall(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone,
-                                              hasStarted=False, current_workers=set())
-                            self.add_agent(drywall, drywall.pos)
-                            # self.update_xymap(drywall.pos, value=0)
+                        if index == 0:  # create only one grid for bim_element other grids are dummy bim_elements (copy the state of the bim_element)
+                            bim_element = Bim_element(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone,
+                                              hasStarted=False, current_workers=set(), start_date=datetime.strptime(df.loc[name, "start_date"], "%d.%m.%Y"), end_date=datetime.strptime(df.loc[name, "end_date"], "%d.%m.%Y"))
+                            self.add_agent(bim_element, bim_element.pos)
+                            # self.update_xymap(bim_element.pos, value=0)
                             # keep track of dry_walls in the model
-                            self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
-                            self.drywalls_agents[name].append(drywall)
-                            # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
-                            # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
-                            # self.drywalls_in_zone[name].add()
+                            self.bim_elements_agents[name] = self.bim_elements_agents.get(name, [])
+                            self.bim_elements_agents[name].append(bim_element)
+                            # each bim_element is considered a smaller zone/space inside a bigger zone (tack area)
+                            # self.bim_elements_in_zone[name] = self.bim_elements_by_zone.get(name, set())
+                            # self.bim_elements_in_zone[name].add()
                             parent_zone = self.zones_agents[zone][0]
                             zone = Zone(self.agent_id, self, pos=point, name=name, parent_zone=parent_zone)
                             self.add_agent(zone, zone.pos)
@@ -1150,30 +1180,30 @@ class ConPro(mesa.Model):
                             # keep track of zones in the model
                             self.zones_agents[name] = self.zones_agents.get(name, [])
                             self.zones_agents[name].append(zone)
-                            self.number_of_drywalls += 1
+                            self.number_of_bim_elements += 1
                             self.zones_dwwz_nwwz["wz"].append(
                                 parent_zone.name)  # zones that has work to be done are considered working zones
                             parent_zone.working_zone = True
                         else:
-                            dummy_drywall = DummyDrywall(self.agent_id, self, pos=point, drywall=drywall, name=name)
-                            self.add_agent(dummy_drywall, dummy_drywall.pos)
-                            # self.update_xymap(dummy_drywall.pos, value=0)
+                            dummy_bim_element = DummyBim_element(self.agent_id, self, pos=point, bim_element=bim_element, name="dummy_"+name)
+                            self.add_agent(dummy_bim_element, dummy_bim_element.pos)
+                            # self.update_xymap(dummy_bim_element.pos, value=0)
                             # keep track of dry_walls in the model
-                            self.dummy_drywalls_agents[name] = self.dummy_drywalls_agents.get(name, [])
-                            self.dummy_drywalls_agents[name].append(dummy_drywall)
+                            self.dummy_bim_elements_agents[name] = self.dummy_bim_elements_agents.get(name, [])
+                            self.dummy_bim_elements_agents[name].append(dummy_bim_element)
             else:
                 zone_name = df.loc[name, "zone"].lower()
                 zone_pos = self.zones_agents[zone_name][0].pos
-                tasks = {key: {} for key in cols}
-                for phase in cols:
-                    tasks[phase]["amount"] = df.loc[name, phase]
-                    tasks[phase]["start_date"] = df.loc[name, "start_date"]
-                    tasks[phase]["end_date"] = df.loc[name, "end_date"]
+                tasks = {key: {} for key in self.all_tasks}
+                for phase in self.all_tasks:
+                    tasks[phase]["amount"] = float(df.loc[name, phase])
+                    tasks[phase]["start_date"] = datetime.strptime(df.loc[name, "start_date"], "%d.%m.%Y") + timedelta(hours=5)
+                    tasks[phase]["end_date"] = datetime.strptime(df.loc[name, "end_date"], "%d.%m.%Y") + timedelta(hours=5)
                     tasks[phase]["task_id"] = self.task_id
-                    tasks[phase]["drywall_id"] = self.agent_id
+                    tasks[phase]["bim_element_id"] = self.agent_id
                     tasks[phase]["aquired"] = False
                     tasks[phase]["pos"] = zone_pos
-                    tasks[phase]["drywall"] = name
+                    tasks[phase]["bim_element"] = name
                     tasks[phase]["finished"] = False
                     tasks[phase]["zone_name"] = zone_name
                     tasks[phase]["zone_pos"] = zone_pos
@@ -1184,42 +1214,42 @@ class ConPro(mesa.Model):
                     tasks[phase]["status"] = "pickable"
                     tasks[phase]["constraints"] = set()
                     self.task_id += 1
-                drywall = Drywall(self.agent_id, self, pos=zone_pos, name=name, tasks=tasks, zone=zone_name,
-                                  hasStarted=False, current_workers=set())
-                self.add_agent(drywall, drywall.pos)
-                # self.update_xymap(drywall.pos, value=0)
+                bim_element = Bim_element(self.agent_id, self, pos=zone_pos, name=name, tasks=tasks, zone=zone_name,
+                                  hasStarted=False, current_workers=set(), start_date=datetime.strptime(df.loc[name, "start_date"], "%d.%m.%Y"), end_date=datetime.strptime(df.loc[name, "end_date"], "%d.%m.%Y"))
+                self.add_agent(bim_element, bim_element.pos)
+                # self.update_xymap(bim_element.pos, value=0)
                 # keep track of dry_walls in the model
-                self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
-                self.drywalls_agents[name].append(drywall)
-                # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
-                # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
-                # self.drywalls_in_zone[name].add()
+                self.bim_elements_agents[name] = self.bim_elements_agents.get(name, [])
+                self.bim_elements_agents[name].append(bim_element)
+                # each bim_element is considered a smaller zone/space inside a bigger zone (tack area)
+                # self.bim_elements_in_zone[name] = self.bim_elements_by_zone.get(name, set())
+                # self.bim_elements_in_zone[name].add()
                 parent_zone = self.zones_agents[zone_name][0]
-                zone = Zone(self.agent_id, self, pos=zone_pos, name=name, parent_zone=parent_zone)
-                self.add_agent(zone, zone.pos)
-                self.zones.add(name)
-                # keep track of zones in the model
-                self.zones_agents[name] = self.zones_agents.get(name, [])
-                self.zones_agents[name].append(zone)
-                self.number_of_drywalls += 1
+                # zone = Zone(self.agent_id, self, pos=zone_pos, name=name, parent_zone=parent_zone)
+                # self.add_agent(zone, zone.pos)
+                # self.zones.add(name)
+                # # keep track of zones in the model
+                # self.zones_agents[name] = self.zones_agents.get(name, [])
+                # self.zones_agents[name].append(zone)
+                self.number_of_bim_elements += 1
                 self.zones_dwwz_nwwz["wz"].append(
                     parent_zone.name)  # zones that has work to be done are considered working zones
                 parent_zone.working_zone = True
 
-        # for name, points in drywalls_lines.items():
+        # for name, points in bim_elements_lines.items():
         #     for index, point in enumerate(points):
         #         zone = df.loc[name, "zone"].lower()
         #         zone_pos = self.zones_agents[zone][0].pos
-        #         tasks={key: {} for key in cols}
-        #         for phase in cols:
+        #         tasks={key: {} for key in self.all_tasks}
+        #         for phase in self.all_tasks:
         #             tasks[phase]["amount"] = df.loc[name, phase]
         #             tasks[phase]["start_date"] = df.loc[name, "start_date"]
         #             tasks[phase]["end_date"] = df.loc[name, "end_date"]
         #             tasks[phase]["task_id"] = self.task_id
-        #             tasks[phase]["drywall_id"] = self.agent_id
+        #             tasks[phase]["bim_element_id"] = self.agent_id
         #             tasks[phase]["aquired"] = False
         #             tasks[phase]["pos"] = point
-        #             tasks[phase]["drywall"] = name
+        #             tasks[phase]["bim_element"] = name
         #             tasks[phase]["finished"] = False
         #             tasks[phase]["zone_name"] = zone
         #             tasks[phase]["zone_pos"] = zone_pos
@@ -1229,17 +1259,17 @@ class ConPro(mesa.Model):
         #             tasks[phase]["status"] = "pickable"
         #             tasks[phase]["constraints"] = set()
         #             self.task_id += 1
-        #         if index == 0:#create only one grid for drywall other grids are dummy drywalls (copy the state of the drywall)
+        #         if index == 0:#create only one grid for bim_element other grids are dummy bim_elements (copy the state of the bim_element)
         #
-        #             drywall = Drywall(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone, hasStarted=False, current_workers=set())
-        #             self.add_agent(drywall, drywall.pos)
-        #             # self.update_xymap(drywall.pos, value=0)
+        #             bim_element = Bim_element(self.agent_id, self, pos=point, name=name, tasks=tasks, zone=zone, hasStarted=False, current_workers=set())
+        #             self.add_agent(bim_element, bim_element.pos)
+        #             # self.update_xymap(bim_element.pos, value=0)
         #             # keep track of dry_walls in the model
-        #             self.drywalls_agents[name] = self.drywalls_agents.get(name, [])
-        #             self.drywalls_agents[name].append(drywall)
-        #             # each drywall is considered a smaller zone/space inside a bigger zone (tack area)
-        #             # self.drywalls_in_zone[name] = self.drywalls_by_zone.get(name, set())
-        #             # self.drywalls_in_zone[name].add()
+        #             self.bim_elements_agents[name] = self.bim_elements_agents.get(name, [])
+        #             self.bim_elements_agents[name].append(bim_element)
+        #             # each bim_element is considered a smaller zone/space inside a bigger zone (tack area)
+        #             # self.bim_elements_in_zone[name] = self.bim_elements_by_zone.get(name, set())
+        #             # self.bim_elements_in_zone[name].add()
         #             parent_zone = self.zones_agents[zone][0]
         #             zone = Zone(self.agent_id, self, pos=point, name=name, parent_zone=parent_zone)
         #             self.add_agent(zone, zone.pos)
@@ -1247,16 +1277,16 @@ class ConPro(mesa.Model):
         #             # keep track of zones in the model
         #             self.zones_agents[name] = self.zones_agents.get(name, [])
         #             self.zones_agents[name].append(zone)
-        #             self.number_of_drywalls += 1
+        #             self.number_of_bim_elements += 1
         #             self.zones_dwwz_nwwz["wz"].append(parent_zone.name) # zones that has work to be done are considered working zones
         #             parent_zone.working_zone = True
         #         else:
-        #             dummy_drywall = DummyDrywall(self.agent_id, self, pos=point,  drywall=drywall, name=name)
-        #             self.add_agent(dummy_drywall, dummy_drywall.pos)
-        #             # self.update_xymap(dummy_drywall.pos, value=0)
+        #             dummy_bim_element = DummyBim_element(self.agent_id, self, pos=point,  bim_element=bim_element, name=name)
+        #             self.add_agent(dummy_bim_element, dummy_bim_element.pos)
+        #             # self.update_xymap(dummy_bim_element.pos, value=0)
         #             # keep track of dry_walls in the model
-        #             self.dummy_drywalls_agents[name] = self.dummy_drywalls_agents.get(name, [])
-        #             self.dummy_drywalls_agents[name].append(dummy_drywall)
+        #             self.dummy_bim_elements_agents[name] = self.dummy_bim_elements_agents.get(name, [])
+        #             self.dummy_bim_elements_agents[name].append(dummy_bim_element)
 
     def add_agent(self, agent, pos=(0,0)):
         """
@@ -1378,7 +1408,6 @@ class ConPro(mesa.Model):
             x, y = point[0], point[1]
             if x < max_array_x and y < max_arry_y:
                 cell_content = zone_key[self.height - 1 - y, x].lower()
-                # print (cell_content, "cell_content ")
                 if cell_content!= "0" and cell_content!= "1":
                     cell_content = cell_content.lower()
                     zone_label = ZoneLabel(self.agent_id, self, (x-1, y), name=cell_content)
@@ -1456,7 +1485,6 @@ class ConPro(mesa.Model):
         init_route = init_route.applymap(int)
         init_route.to_csv("{}".format("ConPro/{}".format(output_filename)), index=False, header=False, sep=";")
         # self.init_route=init_route.to_csv(index=False, header=False)
-        # print(self.init_route)
 
     def init_path(self, filename="init_route.csv" ):#modify: regenerate init_route.csv if the floor changed
         """
@@ -1471,7 +1499,7 @@ class ConPro(mesa.Model):
         """
         Add or remove obstacle to the map
         :param pos: the position where to change the value
-        :param value: the value of the cell in that position, 0 is considered an obstacle  and 1  non obstacle 
+        :param value: the value of the cell in that position, 0 is considered an obstacle  and 1  non obstacle
         """
         pos = self.to_arrayxy(pos)
         self.xymap_arr [pos[0], pos[1]] = value
@@ -1480,6 +1508,7 @@ class ConPro(mesa.Model):
     def init_route_agents(self):
         """
         intialize/creat route agents
+        The porpuse of this route agent is to for example generate heatmap and presense information about each resource relatiion to space
         :param filename: text file represent grids contain type of wall in each grid
         :return:xymap_arr: numpy array that contain the path grids. grid value 0 mean
         the more the value above 1 the more the importance of this grid in finding path
@@ -1530,7 +1559,6 @@ class ConPro(mesa.Model):
         start = self.to_findpatharrayxy(start[0], start[1])
         end = self.to_findpatharrayxy(end[0], end[1])
         start = self.gridd.node(start[0], start[1])
-        # print (end[0],end[1], self.gridd )
         end = self.gridd.node(end[0], end[1])
         finder = AStarFinder(diagonal_movement=DiagonalMovement.always)
         path, runs = finder.find_path(start, end, self.gridd)
@@ -1565,7 +1593,7 @@ class ConPro(mesa.Model):
             for worker in workers:
                 if worker.status == self.arrival_zone_name and worker.intention == self.arrival_zone_name:
                     workersOut += 1
-                    print("workersOut", workersOut, numberOfWorkers, (self.current_datetime - self.this_day_start_date).seconds / 60, self.leave_time_max)
+                    # print("workersOut", workersOut, numberOfWorkers, (self.current_datetime - self.this_day_start_date).seconds / 60, self.leave_time_max)
             if workersOut == numberOfWorkers:
                 self.current_datetime = self.current_datetime + timedelta(days=1)
                 self.current_datetime = self.current_datetime.replace(hour=self.start_hour, minute=0)
@@ -1615,13 +1643,13 @@ class ConPro(mesa.Model):
         scenario_name.append("-Z{}".format(self.zone_max_worker))
         if len(self.painting_worker_skills) > 6:
             scenario_name.append("-t")
-        if  len(self.palstering_worker_skills) > 6:
+        if  len(self.furniture_worker_skills) > 6:
             scenario_name.append("-l")
 
-        if self.tasks_sequence == {1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"],6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}: #modify
+        if self.tasks_sequence == {1: ["TASK1", "TASK2"], 2: ['TASK3'], 3: ['TASK4'], 4: ["TASK5"], 5: ["TASK6"],6: ["TASK7"], 7: ["TASK10"], 8: ["TASK9"]}: #modify
             scenario_name.append("-Q1")
 
-        elif self.tasks_sequence == {1: ["KEYSTART"]}: #modify
+        elif self.tasks_sequence == {1: ["TASK1"]}: #modify
             scenario_name.append("-Q2")
 
         if self.one_behavior_file :
@@ -1647,27 +1675,24 @@ class ConPro(mesa.Model):
 
     def set_all_available_tasks(self):
         """
-        Loop through all drywalls and set the available tasks
+        Loop through all bim_elements and set the available tasks
         :return:
         """
         #todo: this is temporary object not need to add self. Consider this
         #todo: same apply to available_task in  drwyall
         #todo: CHECK MAX NUMBER OF WORKERS in each zone
-        #todo: check max number of workers for each drywall or maybe this each drywall can take care of it
+        #todo: check max number of workers for each bim_element or maybe this each bim_element can take care of it
         self.available_tasks = dict()
-        for drywall_name, drywall_agent_list in self.drywalls_agents.items():
-            drywall_agent = drywall_agent_list[0]
-            if drywall_agent.available_tasks:
-                for task_key in drywall_agent.available_tasks:
-                    drywall_task = drywall_agent.tasks[task_key]
-                    model_task = self.is_task_pickable(drywall_task)
+        for bim_element_name, bim_element_agent_list in self.bim_elements_agents.items():
+            bim_element_agent = bim_element_agent_list[0]
+            if bim_element_agent.available_tasks:
+                for task_key in bim_element_agent.available_tasks:
+                    bim_element_task = bim_element_agent.tasks[task_key]
+                    model_task = self.is_task_pickable(bim_element_task)
                     if model_task:
                         self.available_tasks[task_key] = self.available_tasks.get(task_key, [])
                         if task_key and model_task not in self.available_tasks[task_key]:
                             self.available_tasks[task_key].append(model_task)
-
-        # print ("self.available_tasks", self.available_tasks)
-
     def get_today_minutes(self):
         """
         calculate the number of minutes passed since the start of the day
@@ -1871,31 +1896,31 @@ class ConPro(mesa.Model):
         self.available_tasks[selected_task_key][task_index]["n_worker"] = \
         self.available_tasks[selected_task_key][task_index]["n_worker"] - 1
 
-    def increase_completed_drywall(self):
+    def increase_completed_bim_element(self):
         """
-        return the number of completed drywalls
+        return the number of completed bim_elements
         :return:
         """
-        self.completed_drywalls += 1
+        self.completed_bim_elements += 1
 
-    def get_completed_drywalls(self):
+    def get_completed_bim_elements(self):
         """
-        get the number fo completed drywall
-        :return: integre of the number of completed drywalls
+        get the number fo completed bim_element
+        :return: integre of the number of completed bim_elements
         """
-        return self.completed_drywalls
+        return self.completed_bim_elements
 
-    def is_all_drywalls_completed(self):
+    def is_all_bim_elements_completed(self):
         """
-        check if all drywalls are completed
+        check if all bim_elements are completed
         :return:
         """
-        if self.get_completed_drywalls() >= self.number_of_drywalls:
+        if self.get_completed_bim_elements() >= self.number_of_bim_elements:
             return True
         else :
             return False
 
-    def remove_zone_works(self, zone):
+    def remove_zone_works(self, zone): # not used
         """
         Remove  tasks from availabe tasks in the zone that got congested
         self.available_tasks = {task_key:[{task1} , {task 2}]}
@@ -1905,36 +1930,35 @@ class ConPro(mesa.Model):
         for tasks_lists in self.available_tasks.values():#[[{}, {}], [{},{}]]
             for task in tasks_lists:
                 if task["zone_name"] == zone:
-                    task["constraints"].add("zone")
-
+                    task["constraints"].add("zone") #  what constraints that prevent the continuation of the task
 
     def remove_task(self, task_key, task_index):
         """
         Remove tasks from avaialbe tasks if number of workers exceeded the maximum for this task
-        :param task_key: task key (KEYMECH)
+        :param task_key: task key (TASK3)
         :param task_index: task index in avaialbe tasks
         :return:
         """
         self.available_tasks[task_key][task_index]["constraints"].add("task")  # remove this task from avilable
 
 
-    def remove_drywall(self, drywall):
+    def remove_bim_element(self, bim_element): # not used
         """
-        Remove all tasks of the drywall
-        :param drywall: name of drywall to be removed
+        Remove all tasks of the bim_element
+        :param bim_element: name of bim_element to be removed
         :return:
         """
         for tasks_list in self.available_tasks.values():
             for task in tasks_list:
-                if task["drywall"] == drywall:
-                    task["constraints"].add("drywall")
+                if task["bim_element"] == bim_element:
+                    task["constraints"].add("bim_element")
 
     def step(self):
         """
         Unique step function that does staged activation of agents
         """
-        self.run_agent_step_bytype(Drywall)
-        self.run_agent_step_bytype(DummyDrywall)
+        self.run_agent_step_bytype(Bim_element)
+        self.run_agent_step_bytype(DummyBim_element)
         self.set_all_available_tasks()
         # self.assgin_tasks_to_workers()
         self.run_agent_step_bytype(Worker)
@@ -1957,10 +1981,10 @@ class ConPro(mesa.Model):
         if self.schedule.steps > self.running_steps:
             self.running = False
 
-        if self.is_all_drywalls_completed():
+        if self.is_all_bim_elements_completed():
             print("all completed")
-            self.run_agent_step_bytype(Drywall)
-            self.run_agent_step_bytype(DummyDrywall)
+            self.run_agent_step_bytype(Bim_element)
+            self.run_agent_step_bytype(DummyBim_element)
             self.set_all_available_tasks()
             self.run_agent_step_bytype(Worker)
             self.run_agent_step_bytype(Zone)

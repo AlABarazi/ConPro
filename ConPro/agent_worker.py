@@ -1,6 +1,6 @@
 import math
 import mesa
-
+from datetime import timedelta
 # Helper function
 def get_distance(pos_1, pos_2):
     """
@@ -12,13 +12,12 @@ def get_distance(pos_1, pos_2):
     dx = x1 - x2
     dy = y1 - y2
     return math.sqrt(dx**2 + dy**2)
-# todo: worker set current trade for picked drywall
+# todo: worker set current trade for picked bim_element
 class Worker(mesa.Agent):
     """
-    This agent represent the worker agent, in this project drywall worker is modeled
+    This agent represent the worker agent, in this project bim_element worker is modeled
     In futuer development, this should be a parent class where all other workers type can be considered child to it.
     """
-
     def __init__(
         self,
         unique_id,
@@ -36,7 +35,7 @@ class Worker(mesa.Agent):
         # activities=[],
         behaviors_by_key=None,
         color="#20FA50",
-        agent_name="",
+        name="",
         carrying_materials=False,
         current_floor=1,
         dst_floor=1,
@@ -53,8 +52,8 @@ class Worker(mesa.Agent):
         t_at_site=0,
         target_space = None,
         selected_task_key = None,
-        drywall_name = None,
-        drywall = None,
+        bim_element_name = None,
+        bim_element = None,
 
     ):
         super().__init__(unique_id, model)
@@ -68,13 +67,14 @@ class Worker(mesa.Agent):
             target_space = None
         if selected_task_key == None:
             selected_task_key = None
-        if drywall_name == None:
-            drywall_name = None
-        if drywall == None:
-            drywall = None
-        self.drywall_name = drywall_name
+        if bim_element_name == None:
+            bim_element_name = None
+        if bim_element == None:
+            bim_element = None
+        self.bim_element_name = bim_element_name
         self.walk_speed = self.model.init_walk_speed
         self.pos = pos
+        self.name = name
         self.moore = moore
         self.trade = trade
         self.arrival=arrival
@@ -155,12 +155,24 @@ class Worker(mesa.Agent):
         self.total_time_idle = 0
         self.idle_percentage = 0
         self.selected_task_key = None
-        self.drywall = drywall
+        self.bim_element = bim_element
         self.target_space = target_space
         self.last_t_at_workplace = 0
-
+        self.arrival_time = 0
+        self.coffe_break_start = 0
+        self.coffe_break2_start = 0
+        self.leave_time = 0
+        self.coffe_break_duration = 0
+        self.coffe_break2_duration = 0
+        self.lunch_break_duration = 0
+        self.placing_lunchbox_duration = 0
+        self.mt_picking_du = 0
+        self.start = 0
+        self.finish = 0
+        self.duration = 0
+        self.start_datetime = self.model.this_day_start_date
+        self.finish_datetime = self.model.this_day_start_date
         # endnew
-
     def change_visual(self):
         """
         how agent visualize itself on the grid. used in server.py file in  def Agent_portrayal(agent):
@@ -320,7 +332,7 @@ class Worker(mesa.Agent):
         Set arrival and leave time for this worker. Also set breaks start times and their durations in minutes (since the starting of the day at 12 am )
         :return:
         """
-        self.mytimes["arrival_time"] = 360.25 # self.arrival_time() #modify
+        self.mytimes["arrival_time"] =  self.set_arrival_time() #modify # 360
         self.utility_functions_select_intention()
         self.mytimes["coffe_break_start"] = self.set_coffeBr_time()
         self.mytimes["coffe_break2_start"] = self.set_coffeBr2_time()
@@ -331,6 +343,15 @@ class Worker(mesa.Agent):
         self.mytimes["lunch_break_duration"] =  self.set_lunchBr_duration()
         self.mytimes["placing_lunchbox_duration"] = self.set_lunchbox_duration()
         self.mytimes["mt_picking_du"] = self.set_material_pk_du()
+        # self.arrival_time = self.mytimes["arrival_time"] # this is just to make extracting data easier in agent_reporter
+        # self.coffe_break_start = self.mytimes["coffe_break_start"]
+        # self.coffe_break2_start = self.mytimes["coffe_break2_start"]
+        # self.leave_time = self.mytimes["leave_time"]
+        # self.coffe_break_duration = self.mytimes["coffe_break_duration"]
+        # self.coffe_break2_duration = self.mytimes["coffe_break2_duration"]
+        # self.lunch_break_duration = self.mytimes["lunch_break_duration"]
+        # self.placing_lunchbox_duration = self.mytimes["placing_lunchbox_duration"]
+        # self.mt_picking_du = self.mytimes["mt_picking_du"]
 
     def isArrived(self):
         """
@@ -426,6 +447,11 @@ class Worker(mesa.Agent):
         self.mytimes["start"] = self.getTimeArrivedToPlace()#time
         self.mytimes["duration"] = self.get_duration(type= type)
         self.mytimes["finish"] = self.getFinishTime()
+        self.start = self.mytimes["start"]
+        self.duration = self.mytimes["duration"]
+        self.finish = self.mytimes["finish"]
+        self.start_datetime = self.model.this_day_start_date + timedelta(minutes=self.start)
+        self.finish_datetime = self.model.this_day_start_date + timedelta(minutes=self.finish)
 
     def get_duration(self,type):
         """
@@ -439,8 +465,9 @@ class Worker(mesa.Agent):
 
         elif type == "out_of_work_zone":
             self.mytimes["duration"] = max(self.mytimes["duration"], max_duration)
+            self.duration = self.mytimes["duration"] # check this
         else:
-            self.duration = self.model.utility_functions_workduration(max_duration)
+            self.duration = self.model.utility_functions_workduration(max_duration) # in minutes
         return self.duration
 
     def getTimeArrivedToPlace(self):
@@ -462,7 +489,10 @@ class Worker(mesa.Agent):
         Check if worker is at his wagon
         :return: True if worker is in the wagon
         """
-        return self.pos == self.drywall.pos#self.drywall.tasks[self.selected_task_key]["zone_pos"] # self.status == self.intention and
+        if self.bim_element:
+            return self.pos == self.bim_element.pos#self.bim_element.tasks[self.selected_task_key]["zone_pos"] # self.status == self.intention and
+        else :
+            return False
 
     def isAtBreakSpace(self):
         """
@@ -570,12 +600,12 @@ class Worker(mesa.Agent):
         elif self.isAtWorkPlace():
             intention, duration = self.utility_functions_select_intention()
             self.intention = intention
-            self.mytimes["duration"] = duration/60 # to minutes
+            self.mytimes["duration"] = duration/60 # to minutes # this determine duration out of workplace (nwz , wz )
             self.setNextDurVar('out_of_work_zone')
             self.setIntentionExpireAt(self.mytimes["start"], self.mytimes["duration"])
         elif not self.isAtWorkPlace(): # goToWorkPlace:
             # self.assgin_intention(self.set_type_of_next_break())
-            self.intention = self.drywall.zone
+            self.intention = self.bim_element.zone
             self.setNextDurVar(self.intention)
             self.setIntentionExpireAt(0, self.mytimes["finish"])
 
@@ -591,10 +621,14 @@ class Worker(mesa.Agent):
         find target space for worker
         :return:
         """
-        if self.intention == self.drywall.zone:
-            self.target_space = self.model.zones_agents[self.drywall.name][0]
+
+        if self.intention == self.bim_element.zone:
+            if not self.model.model_tasks_grids:
+                self.target_space = self.model.zones_agents[self.bim_element.zone][0]
+            else:
+                self.target_space = self.model.zones_agents[self.bim_element.name][0]
         else:
-            self.target_space = self.model.zones_agents[self.intention][0]
+                self.target_space = self.model.zones_agents[self.intention][0]
 
     def set_destination(self):
         """
@@ -615,9 +649,7 @@ class Worker(mesa.Agent):
         :return: next activity and its duration
         """
         # {"task_porb":task_porb, "durations_dist":durations_dist, "activities":activities, "wz_nwz_prob":wz_nwz_prob, "nwz_wz_pdfs":nwz_wz_pdfs}
-        # print ("selected_task_key", self.selected_task_key)
         if self.selected_task_key:
-            # print("self.behaviors_by_key", self.behaviors_by_key)
             task_porb = self.behaviors_by_key[self.selected_task_key]["wz_nwz_prob"]
             next_work = self.model.random.choices(population=list(task_porb.keys()) ,weights=list(task_porb.values()), k=1)
             next_work = next_work[0]
@@ -626,7 +658,6 @@ class Worker(mesa.Agent):
             weights = next_work_durations_pdfseries.values
             duration = self.model.random.choices(population, weights)[0]
             duration if duration >= 0 else self.utility_functions_select_intention()
-            # print ("next_work", next_work, duration)
             next_work = self.model.random.choices(self.model.zones_dwwz_nwwz[next_work]) # working zone or non working zone
             next_work = next_work[0]
             # return choices(population, weights)[0]
@@ -734,30 +765,41 @@ class Worker(mesa.Agent):
         select task key from the avaialbe tasks
         :return:
         """
-        selected_task_key = self.model.random.choice(list(possible_tasks.keys()))
+        match self.model.task_piking_strategy:
+            case "random":
+                selected_task_key = self.model.random.choice(list(possible_tasks.keys()))
+            case "first":
+                selected_task_key = list(possible_tasks.keys())[0]
+            case _:
+                selected_task_key = self.model.random.choice(list(possible_tasks.keys()))
         return selected_task_key
 
     def pick_task(self, possible_tasks, selected_task_key):
         """
         worker pick a task to work on from the available tasks (now random, later according to some rules)
         :param possible_tasks: dictionary of possible tasks the keys and the tasks that the worker can do and value is list of possible tasks
-        {"KEYMECH":[{"amount":200, "drywall":"dry_wall11"......},{"amount":200, "drywall":"dry_wall12"......}]} or {"KEYMECH":[{task1},{task2}]}
+        {"KEYMECH":[{"amount":200, "bim_element":"dry_wall11"......},{"amount":200, "bim_element":"dry_wall12"......}]} or {"KEYMECH":[{task1},{task2}]}
         :return:
         """
         n_tasks = len(list(possible_tasks[selected_task_key]))
         tasks = list(possible_tasks[selected_task_key])
-        task_index = self.model.random.choice(range(n_tasks))
+        match self.model.task_piking_strategy:
+            case "random":
+                task_index = self.model.random.choice(range(n_tasks))
+            case "first":
+                task_index = 0
+            case _:
+                task_index = self.model.random.choice(range(n_tasks))
         selected_task = tasks[task_index]
         return selected_task, task_index
 
-    # def pick_drywall(self, task):
+    # def pick_bim_element(self, task):
     #     """
-    #     pick the drywall to work on based on the selected task, information about
+    #     pick the bim_element to work on based on the selected task, information about
     #     :param task:
     #     :return:
     #     """
-    #     print("task", self.selected_task_key , task )
-    #     self.drywall = task["drywall"]
+    #     self.bim_element = task["bim_element"]
 
     def is_idle(self):
         """
@@ -771,7 +813,7 @@ class Worker(mesa.Agent):
         print the attributes of this agent
         :return:
         """
-        print ("dest", self.destination,
+        print ("worker_att", "dest", self.destination,
                "pos", self.pos,
                 "status", self.status,
                 "intention",self.intention,
@@ -789,12 +831,12 @@ class Worker(mesa.Agent):
         """
         executed at each step by the schedular (the model). Other option is to define what should be done during each step in the model
         (can be safer option if the actiavation method of agents matter)
-        i.e. the all the worker first should move , then all the worker should work  then the drywalls should generate tasks
+        i.e. the all the worker first should move , then all the worker should work  then the bim_elements should generate tasks
         if the activation is made by step  function then the activation will not consider agent type
         """
         # if self.trade == "plastering":
-        self.print_attributes()
-        # print(self.mytimes)
+        # self.print_attributes()
+        # print(self.is_idle(),self.isAtWorkPlace(), "worker", self.intention, self.status, self.idle_percentage, self.utilization)
         if self.isNewVisual:
             self.change_visual()
             self.isNewVisual = False
@@ -809,48 +851,40 @@ class Worker(mesa.Agent):
         self.get_newday_times()# keep thisfirst
 #                 self.calculate_time_at_site_total()
 
-        if not self.drywall:#get drywall to work on if you don't have one
+        if not self.bim_element:#get bim_element to work on if you don't have one
             possible_tasks = self.determine_possible_tasks()
-            if possible_tasks and not self.drywall:
+            if possible_tasks and not self.bim_element:
                 selected_task_key = self.pick_task_key(possible_tasks)
                 task, task_index = self.pick_task(possible_tasks, selected_task_key)
-                # if more than one trade can work on different drywalls
+                # if more than one trade can work on different bim_elements
                 # if not self.model.one_zone_one_trade: # zone does not have any trade
                     #and selected_task_key not in self.model.zones_agents[0][task["zone_name"]].current_trade
                 self.selected_task_key = selected_task_key
                 self.task_index = task_index
-                self.drywall_name = task["drywall"]
-                self.drywall = self.model.drywalls_agents[self.drywall_name][0]
-                self.drywall.current_trade = self.trade
-                # update zone, tasks for drywall and tasks avaialabe in the model
+                self.bim_element_name = task["bim_element"]
+                self.bim_element = self.model.bim_elements_agents[self.bim_element_name][0]
+                self.bim_element.current_trade = self.trade
+                # update zone, tasks for bim_element and tasks avaialabe in the model
                 # remove tasks that can't be picke
                 # if self.trade == "plastering":
                 #
                 self.model.increase_n_workers(selected_task_key, task_index)
-                # self.drywall.increase_n_workers(selected_task_key) # update drywall n_workers
-                self.drywall.add_person(self) # update drywall task n_workers
-                zone = self.model.zones_agents[self.drywall.zone][0]
+                # self.bim_element.increase_n_workers(selected_task_key) # update bim_element n_workers
+                self.bim_element.add_person(self) # update bim_element task n_workers
+                zone = self.model.zones_agents[self.bim_element.zone][0]
                 zone.add_worker(self)
                 zone.add_trade(selected_task_key) # update zone
-                # print( self.trade, self.model.available_tasks[selected_task_key][task_index]['n_worker'], "model n_workers /n",
-                #            self.drywall.tasks[selected_task_key]['n_worker'], "drywall n_workers /n",
-                #            self.drywall.current_workers, "drywall curren_workers /n",
-                #            self.model.zones_agents[self.drywall.zone][0].current_workers, "zone, current_workers",
-                #            self.model.zones_agents[self.drywall.zone][0].current_trades, "zone current_trads"  # update zone
-                #     )
                 if zone.is_trades_full() or zone.is_workers_full() or zone.is_visitors_full():
-                    # print(len(zone.current_trades), len(zone.assgined_workers), zone.is_visitors_full())
-                    # remove all drywalls in this zone from avaialbe
+                    # remove all bim_elements in this zone from avaialbe
                     self.model.remove_zone_works(zone.name)
-                elif self.drywall.is_drywall_max_n_worker(): #
-                     # remove this drywall from availabe
-                    self.model.remove_drywall(self.drywall.name)
-                elif self.drywall.is_task_max_n_worker(task):
+                elif self.bim_element.is_bim_element_max_n_worker(): #
+                     # remove this bim_element from availabe
+                    self.model.remove_bim_element(self.bim_element.name)
+                elif self.bim_element.is_task_max_n_worker(task):
                     self.model.remove_task(self.selected_task_key, self.task_index)
-                # print ("workers modify self.available_tasks after", self.model.available_tasks)
 
-        if self.drywall:
-            if not self.drywall.tasks[self.selected_task_key]["finished"]:
+        if self.bim_element:
+            if not self.bim_element.tasks[self.selected_task_key]["finished"]:
                 if self.canChangeIntention():
                     self.sendVisitorOutOfSpace()
                     self.change_intention()
@@ -873,24 +907,17 @@ class Worker(mesa.Agent):
                     self.calculate_utilization()
                     self.last_t_at_workplace +=(self.model.simulation_speed_microsec/1000000)/60
                     if self.last_t_at_workplace > self.model.w_presence:
-                        self.drywall.reduce_amount(self.production_rate[self.selected_task_key])
-            if self.drywall.tasks[self.selected_task_key]["finished"]:
+                        self.bim_element.reduce_amount(self.production_rate[self.selected_task_key]*self.model.simulation_speed_h)
+            if self.bim_element.tasks[self.selected_task_key]["finished"]:
                 #todo:remove worker from zone
                 # self.model.decrease_n_workers(self.selected_task_key, self.task_index)
-                self.drywall.decrease_n_workers(self.selected_task_key)  # update drywall n_workers
-                self.drywall.remove_person(self)  # update drywall task n_workers
-                self.model.zones_agents[self.drywall.zone][0].remove_worker(self)
-                self.model.zones_agents[self.drywall.zone][0].remove_trade(self.selected_task_key)  # update zone
-                # print(self.trade,  # self.model.available_tasks[self.selected_task_key][self.task_index]['n_worker'],
-                #       # "model n_workers /n",
-                #       self.drywall.tasks[self.selected_task_key]['n_worker'], "drywall n_workers /n",
-                #       self.drywall.current_workers, "drywall curren_workers /n",
-                #       self.model.zones_agents[self.drywall.zone][0].assgined_workers, "zone, current_workers",
-                #       self.model.zones_agents[self.drywall.zone][0].current_trades, "zone current_trads"  # update zone
-                #       )
-                self.drywall = None
+                self.bim_element.decrease_n_workers(self.selected_task_key)  # update bim_element n_workers
+                self.bim_element.remove_person(self)  # update bim_element task n_workers
+                self.model.zones_agents[self.bim_element.zone][0].remove_worker(self)
+                self.model.zones_agents[self.bim_element.zone][0].remove_trade(self.selected_task_key)  # update zone
+                self.bim_element = None
                 self.selected_task_key = None
-                self.drywall_name = None
+                self.bim_element_name = None
 
         else:
             self.sendVisitorOutOfSpace()

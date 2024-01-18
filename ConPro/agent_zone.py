@@ -144,18 +144,34 @@ class Zone(mesa.Agent):
         how agent visualize itself on the grid. used in server.py file in  def Agent_portrayal(agent):
         """
         self.visual["text"] = len(self.current_visitors)
+        self.set_zone_color()
+
+    def has_worker(self):
+        """check if zone has workers working on tasks (not visitor worker)"""
+        if self.n_workers > 0:
+            return True
+        else:
+            return False
+    def set_zone_color(self):
+        """set color to green if zone has working worker"""
+        if self.has_worker():
+            self.visual['Color'] = "green"
+        else:
+            self.visual['Color'] = "white"
+        self.isNewVisual = True
+
 
 
     def step(self):
         """
         executed at each step by the schedular (the model). Other option is to define what should be done during each step in the model
         (can be safer option if the actiavation method of agents matter)
-        i.e. the all the worker first should move , then all the worker should work  then the drywalls should generate tasks
+        i.e. the all the worker first should move , then all the worker should work  then the bim_elements should generate tasks
         if the activation is made by step  function then the activation will not consider agent type
         """
-        if self.isNewVisual:
-            self.change_visual()
-            self.isNewVisual = True
         self.n_visitors = self.get_current_visitors()
         self.n_workers = self.get_assgined_workers()
         self.n_trades = self.get_current_trades()
+        if self.isNewVisual:
+            self.change_visual()
+            self.isNewVisual = True

@@ -24,6 +24,7 @@ import re
 import random
 import os
 from multiprocessing import freeze_support
+import shutil
 
 # Analysis
 def assess_results(results, single_agent):
@@ -71,116 +72,9 @@ def create_directory():
 
 #####
 
-Scenarios1 = {
-    "n_plastering_workers" : [2],
-    "n_painting_workers" : [2],
-    "zone_max_worker" : [2],
-    "zone_max_trades" : [2],
-    "zone_max_visitor" : [10000],
-    "KEYSTART_max" : [2],
-    "KEYFRAMES_max" : [2],
-    "KEYMECH_max" : [2],
-    "KEYELEC_max" : [2],
-    "KEYINSU_max" : [2],
-    "KEYSTUD_max" : [2],
-    "KEYPAINTING_max" : [2],
-    "KEYFINISHING_max" : [2],
-    "KEYEND_max" : [2],
-    "work_duration" : [3],
-    "work_duration_min" : [1],
-    "work_duration_max" : [4],
-    # "tasks_sequence" : [{1: ["KEYSTART"]}],
-    "tasks_sequence": [{1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"], 6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}],
-    "simulation_speed_microsec":[15000000], #1500000 1.5 sec   #15000000 15 sec
-    "one_behavior_file":[True],
-"palstering_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100}],
-"painting_worker_skills":[{"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}],
-    "drywalls_points": [
-        [
-        # [[3,118],[19,118], "dry_wall5"],
-        # [[19,119],[19,127], "dry_wall5"],
-        [[2, 23], [12, 23], "dry_wall3"],
-        [[12, 11], [12, 22], "dry_wall3"],
-        # [[11, 11], [2, 11], "dry_wall4"],
-        # [[12, 10], [15, 10], "dry_wall1"],
-        #  [[43,33],[43,38], "dry_wall7"]]
-    ]
-    ],
-}
+Scenario1 = ConPro.Scenario1
 
-Scenarios2 = {
-    "n_plastering_workers" : [2],
-    "n_painting_workers" : [2],
-    "zone_max_worker" : [2],
-    "zone_max_trades" : [2],
-    "zone_max_visitor" : [10000],
-    "KEYSTART_max" : [2],
-    "KEYFRAMES_max" : [2],
-    "KEYMECH_max" : [2],
-    "KEYELEC_max" : [2],
-    "KEYINSU_max" : [2],
-    "KEYSTUD_max" : [2],
-    "KEYPAINTING_max" : [2],
-    "KEYFINISHING_max" : [2],
-    "KEYEND_max" : [2],
-    "work_duration" : [3],
-    "work_duration_min" : [1],
-    "work_duration_max" : [4],
-    # "tasks_sequence" : [{1: ["KEYSTART"]}],
-    "tasks_sequence": [{1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"], 6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}],
-    "simulation_speed_microsec":[15000000], #1500000 1.5 sec   #15000000 15 sec
-    "one_behavior_file":[True],
-"palstering_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100,"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}], #
-"painting_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100,"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}],
-    "drywalls_points": [
-        [
-        # [[3,118],[19,118], "dry_wall5"],
-        # [[19,119],[19,127], "dry_wall5"],
-        [[2, 23], [12, 23], "dry_wall3"],
-        [[12, 11], [12, 22], "dry_wall3"],
-        # [[11, 11], [2, 11], "dry_wall4"],
-        # [[12, 10], [15, 10], "dry_wall1"],
-        #  [[43,33],[43,38], "dry_wall7"]]
-    ]
-    ]
-}
 
-Scenarios3 = {
-    "n_plastering_workers" : [2],
-    "n_painting_workers" : [2],
-    "zone_max_worker" : [2],
-    "zone_max_trades" : [2],
-    "zone_max_visitor" : [10000],
-    "KEYSTART_max" : [1,2],
-    "KEYFRAMES_max" : [1,2],
-    "KEYMECH_max" : [1,2],
-    "KEYELEC_max" : [1,2],
-    "KEYINSU_max" : [1,2],
-    "KEYSTUD_max" : [1,2],
-    "KEYPAINTING_max" : [1,2],
-    "KEYFINISHING_max" : [1,2],
-    "KEYEND_max" : [1, 2],
-    "work_duration" : [3],
-    "work_duration_min" : [1],
-    "work_duration_max" : [4],
-    # "tasks_sequence" : [{1: ["KEYSTART"]}],
-    "tasks_sequence": [{1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"], 6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}],
-    "simulation_speed_microsec":[15000000], #1500000 1.5 sec   #15000000 15 sec
-    "one_behavior_file":[True],
-"palstering_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100}],
-"painting_worker_skills":[{"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}],
-    "drywalls_points": [
-        [
-        # [[3,118],[19,118], "dry_wall5"],
-        # [[19,119],[19,127], "dry_wall5"],
-        [[2, 23], [12, 23], "dry_wall3"],
-        [[12, 11], [12, 22], "dry_wall3"],
-        # [[11, 11], [2, 11], "dry_wall4"],
-        # [[12, 10], [15, 10], "dry_wall1"],
-        #  [[43,33],[43,38], "dry_wall7"]]
-    ]
-    ],
-}
 
 ######
 # At the end of each model run, calculate the fraction of trees which are Burned Out
@@ -221,9 +115,23 @@ def append_df(condition=False):
     frame.to_excel(final_directory)
 
 
+def delete_all_files_and_folders(directory):
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            os.remove(os.path.join(root, file))
+        for dir in dirs:
+            shutil.rmtree(os.path.join(root, dir))
+def delete_files():
+    for file_name in glob.iglob("resultsOnetime/*", recursive=True):
+        os.remove(file_name)
+        #        print (file_name)
+
+
+
+
 def runner(variable_par_ls, iterations=1, max_steps=1000, number_processes=None,
 
-           data_collection_period=1, variable_params=Scenarios1):
+           data_collection_period=1, variable_params=Scenario1):
     agent_reporters = {"AgentCapacity": "agent_name", "current_datetime": "current_datetime"}
     variable_par_dic = dict(zip(variable_params.keys(), [[i] for i in variable_par_ls]))  # make dic from two lists,
     #    print (variable_par_dic)
@@ -261,7 +169,7 @@ def runner(variable_par_ls, iterations=1, max_steps=1000, number_processes=None,
     #    ]
     #    print(results_one_episode.to_string(index=False, columns=["Step", "Gini"], max_rows=25))
 
-def main(iterations=10, max_steps=30000, variable_params=Scenarios1, data_collection_period =3):  # variable_params=SiteA1 SiteB SiteA
+def main(iterations=10, max_steps=30000, variable_params=Scenario1, data_collection_period =3):  # variable_params=SiteA1 SiteB SiteA
     List_of_Variables = []
     for keys, item in variable_params.items():
         List_of_Variables.append(item)
@@ -277,19 +185,95 @@ def main(iterations=10, max_steps=30000, variable_params=Scenarios1, data_collec
 
 if __name__ == '__main__':
     # args = sys.argv[1:]
-    args = ["runserver"]
-
+    delete_all_files = True
+    if delete_all_files:
+        delete_all_files_and_folders("resultsOnetime")
+    args = ["batch"]
     if args[0] == "runserver":
         server.launch()
     elif "Single" in args[0]:
         single_run()
-
     elif "batch" in args[0]:
         print("Conducting a Batch Run")
         freeze_support()
         # main(iterations=1, max_steps=1, variable_params=Scenarios1)
         # main(iterations=2, max_steps=10000, variable_params=Scenarios2, data_collection_period=3)
-        main(iterations=2, max_steps=1000, variable_params=Scenarios2, data_collection_period=10)
+        main(iterations=1, max_steps=4, variable_params=Scenario1, data_collection_period=1000000)
 
     elif "results" in args[0]:
         append_df(condition=True)
+
+
+# Scenarios2 = {
+#     "n_plastering_workers" : [2],
+#     "n_painting_workers" : [2],
+#     "zone_max_worker" : [2],
+#     "zone_max_trades" : [2],
+#     "zone_max_visitor" : [10000],
+#     "KEYSTART_max" : [2],
+#     "KEYFRAMES_max" : [2],
+#     "KEYMECH_max" : [2],
+#     "KEYELEC_max" : [2],
+#     "KEYINSU_max" : [2],
+#     "KEYSTUD_max" : [2],
+#     "KEYPAINTING_max" : [2],
+#     "KEYFINISHING_max" : [2],
+#     "KEYEND_max" : [2],
+#     "work_duration" : [3],
+#     "work_duration_min" : [1],
+#     "work_duration_max" : [4],
+#     # "tasks_sequence" : [{1: ["KEYSTART"]}],
+#     "tasks_sequence": [{1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"], 6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}],
+#     "simulation_speed_microsec":[15000000], #1500000 1.5 sec   #15000000 15 sec
+#     "one_behavior_file":[True],
+# "palstering_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100,"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}], #
+# "painting_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100,"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}],
+#     "drywalls_points": [
+#         [
+#         # [[3,118],[19,118], "dry_wall5"],
+#         # [[19,119],[19,127], "dry_wall5"],
+#         [[2, 23], [12, 23], "dry_wall3"],
+#         [[12, 11], [12, 22], "dry_wall3"],
+#         # [[11, 11], [2, 11], "dry_wall4"],
+#         # [[12, 10], [15, 10], "dry_wall1"],
+#         #  [[43,33],[43,38], "dry_wall7"]]
+#     ]
+#     ]
+# }
+#
+# Scenarios3 = {
+#     "n_plastering_workers" : [2],
+#     "n_painting_workers" : [2],
+#     "zone_max_worker" : [2],
+#     "zone_max_trades" : [2],
+#     "zone_max_visitor" : [10000],
+#     "KEYSTART_max" : [1,2],
+#     "KEYFRAMES_max" : [1,2],
+#     "KEYMECH_max" : [1,2],
+#     "KEYELEC_max" : [1,2],
+#     "KEYINSU_max" : [1,2],
+#     "KEYSTUD_max" : [1,2],
+#     "KEYPAINTING_max" : [1,2],
+#     "KEYFINISHING_max" : [1,2],
+#     "KEYEND_max" : [1, 2],
+#     "work_duration" : [3],
+#     "work_duration_min" : [1],
+#     "work_duration_max" : [4],
+#     # "tasks_sequence" : [{1: ["KEYSTART"]}],
+#     "tasks_sequence": [{1: ["KEYSTART", "KEYFRAMES"], 2: ['KEYMECH'], 3: ['KEYELEC'], 4: ["KEYINSU"], 5: ["KEYSTUD"], 6: ["KEYPAINTING"], 7: ["KEYFINISHING"], 8: ["KEYEND"]}],
+#     "simulation_speed_microsec":[15000000], #1500000 1.5 sec   #15000000 15 sec
+#     "one_behavior_file":[True],
+# "palstering_worker_skills":[{"KEYMECH": 100, "KEYSTART": 100, "KEYINSU": 100, "KEYPAINTING": 100, "KEYEND": 100}],
+# "painting_worker_skills":[{"KEYFRAMES": 200, "KEYELEC": 200, "KEYSTUD": 150, "KEYFINISHING": 122}],
+#     "drywalls_points": [
+#         [
+#         # [[3,118],[19,118], "dry_wall5"],
+#         # [[19,119],[19,127], "dry_wall5"],
+#         [[2, 23], [12, 23], "dry_wall3"],
+#         [[12, 11], [12, 22], "dry_wall3"],
+#         # [[11, 11], [2, 11], "dry_wall4"],
+#         # [[12, 10], [15, 10], "dry_wall1"],
+#         #  [[43,33],[43,38], "dry_wall7"]]
+#     ]
+#     ],
+# }

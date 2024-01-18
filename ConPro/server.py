@@ -13,15 +13,13 @@ def Agent_portrayal(agent):
 # model_params = {}
 
 
-params_list = ["w_presence", "n_plastering_workers", "n_painting_workers", "zone_max_worker", "zone_max_trades",
-               "KEYSTART_max","KEYFRAMES_max","KEYMECH_max","KEYELEC_max", "KEYINSU_max", "KEYSTUD_max", "KEYPAINTING_max",  "KEYFINISHING_max",
-               "KEYEND_max"]
+params_list = ConPro.params_list
 
-model_params = {key:(mesa.visualization.NumberInput( key, value=1)) for key in params_list }
+model_params = {key:(mesa.visualization.NumberInput( key, value=10)) for key in params_list }
 model_params["w_presence"] = mesa.visualization.NumberInput( "w_presence", value=0) # 1500000 1.5 sec # 15000000 15 sec
-model_params["work_duration"] = mesa.visualization.NumberInput( "work_duration", value=1.5) # 1500000 1.5 sec # 15000000 15 sec
-model_params["work_duration_min"] = mesa.visualization.NumberInput( "work_duration_min", value=1) # 1500000 1.5 sec # 15000000 15 sec
-model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_duration_max", value=10) # 1500000 1.5 sec # 15000000 15 se
+model_params["work_duration"] = mesa.visualization.NumberInput( "work_duration", value=20) # 1500000 1.5 sec # 15000000 15 sec
+model_params["work_duration_min"] = mesa.visualization.NumberInput( "work_duration_min", value=10) # 1500000 1.5 sec # 15000000 15 sec
+model_params["work_duration_max"] = mesa.visualization.NumberInput( "work_duration_max", value=120) # 1500000 1.5 sec # 15000000 15 se
 model_params["simulation_speed_microsec"] = mesa.visualization.NumberInput( "simulation_speed_microsec", value=150000000) # 1500000 1.5 sec # 15000000 15 sec
 model_params["seed"] = mesa.visualization.NumberInput( "seed", value=randrange(4294967294))
 # model_params["one_behavior_file"] = mesa.visualization.Checkbox( "one_behavior_file", value=True)
@@ -40,7 +38,7 @@ class ShowSomeText(TextElement):
             str('{:04.1f} minutes passed today'.format(model.get_today_minutes())) + "<br>",
             "Week # " + model.this_week + "<br>",
             "Status # " + model.status + "<br>",
-            "Completed drywalls " + str(model.get_completed_drywalls()) + "<br>",
+            "Completed bim_elements " + str(model.get_completed_bim_elements()) + "<br>",
             "CoBr St " + str(model.coffe_break_start) + "<br>",
             "pssd_wrk_t" + str(model.passed_working_time)
         )
@@ -63,8 +61,8 @@ text_element = ShowSomeText()
 
 chart_element2 = BarChartModule(
     [
-        {"Label": "Utilization", "Color": "#000000"},
-     {"Label": "Idle", "Color": "blue"}
+        {"Label": "Utilization%", "Color": "#000000"},
+     {"Label": "Idle%", "Color": "blue"}
 
      ]
 )
