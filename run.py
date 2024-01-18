@@ -198,7 +198,7 @@ if __name__ == '__main__':
         freeze_support()
         # main(iterations=1, max_steps=1, variable_params=Scenarios1)
         # main(iterations=2, max_steps=10000, variable_params=Scenarios2, data_collection_period=3)
-        main(iterations=1, max_steps=4, variable_params=Scenario1, data_collection_period=1000000)
+        main(iterations=1, max_steps=1000000, variable_params=Scenario1, data_collection_period=1000000)
 
     elif "results" in args[0]:
         append_df(condition=True)

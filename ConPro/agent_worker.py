@@ -863,6 +863,7 @@ class Worker(mesa.Agent):
                 self.task_index = task_index
                 self.bim_element_name = task["bim_element"]
                 self.bim_element = self.model.bim_elements_agents[self.bim_element_name][0]
+                self.bim_element.set_started()
                 self.bim_element.current_trade = self.trade
                 # update zone, tasks for bim_element and tasks avaialabe in the model
                 # remove tasks that can't be picke

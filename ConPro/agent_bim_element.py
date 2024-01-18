@@ -39,7 +39,7 @@ class Bim_element(mesa.Agent):
         self.actual_start = actual_start
         self.actual_end = actual_end
         self.current_task_index = 1
-        self.dry_wall_completed = False
+        self.bim_element_completed = False
         self.pos = pos
         self.moore = moore
         self.name = name
@@ -181,8 +181,6 @@ class Bim_element(mesa.Agent):
         if not self.available_tasks:
             self.isAvailableTasksSet = False
 
-
-
     def isCurrent_index_tasks_finished(self):
         """
         Check if all tasks under the current index are finished
@@ -196,7 +194,7 @@ class Bim_element(mesa.Agent):
         else:
             return False
 
-    def is_dry_wall_completed(self):
+    def is_bim_element_completed(self):
         """
         check if the bim_element has been complete
         :return:
@@ -206,12 +204,12 @@ class Bim_element(mesa.Agent):
         else:
             return False
 
-    def set_dry_wall_completed(self):
+    def set_bim_element_completed(self):
         """
         set the status of bim_element to completed
         :return:
         """
-        self.dry_wall_completed = True
+        self.bim_element_completed = True
         self.isNewVisual = True
         self.actual_end = self.model.current_datetime
 
@@ -224,26 +222,27 @@ class Bim_element(mesa.Agent):
             self.current_task_index +=1
 
 
-    def set_started(self):
+    def set_started(self): # not used
         """
         set the task to started when first trade reserve the space
         :return:
         """
         self.hasStarted = True
-        self.actual_start = self.model.current_datetime
+        if not self.actual_start:
+            self.actual_start = self.model.current_datetime
 
     def change_visual(self):
         """
         how agent visualize itself on the grid. used in server.py file in  def Agent_portrayal(agent):
         """
-        if self.dry_wall_completed:
+        if self.bim_element_completed:
             self.visual["Color"] = "grey"
         elif self.current_trade:
             self.visual["Color"] = self.model.colors[self.current_trade]
         self.visual["text"] = len(self.current_workers)
 
     def test_print(self):
-        #print(self.available_tasks, self.isAvailableTasksSet, self.tasks[self.current_task_key], self.is_dry_wall_completed())
+        #print(self.available_tasks, self.isAvailableTasksSet, self.tasks[self.current_task_key], self.is_bim_element_completed())
         pass
     # def set_current_trade(self, current_trade):
     #     """
@@ -270,19 +269,18 @@ class Bim_element(mesa.Agent):
             self.change_visual()
             self.isNewVisual = False
 
-        if not self.dry_wall_completed:
+        if not self.bim_element_completed:
             if self.isAvailableTasksSet:
                 # self.reduce_amount() # task reduce amount by itself
                 if self.tasks[self.current_task_key]["amount"] <= 0:
                     self.set_task_finished()
-                    if self.is_dry_wall_completed() and not self.dry_wall_completed:
-                        self.set_dry_wall_completed()
+                    if self.is_bim_element_completed() and not self.bim_element_completed:
+                        self.set_bim_element_completed()
                         self.model.increase_completed_bim_element()
                         if self.available_tasks:
                             self.select_task()
                         else:
                             self.current_task_key = None
-
                         if self.name in self.model.bim_elements_lines.keys():
                             self.add_walls_to_map(self)
                             for dummy_bim_element in self.model.dummy_bim_elements_agents[self.name]:
@@ -298,5 +296,5 @@ class Bim_element(mesa.Agent):
                     # self.available_tasks = [current_task_key]
                     # self.set_current_trade()
                     self.isNewVisual = True
-        # print(self.available_tasks, self.isAvailableTasksSet, self.tasks[self.current_task_key], self.is_dry_wall_completed())
+        # print(self.available_tasks, self.isAvailableTasksSet, self.tasks[self.current_task_key], self.is_bim_element_completed())
 
