@@ -1,4 +1,5 @@
 task_name;zone;guid;points;start_date;end_date;TASK1;TASK2;TASK4;TASK5;TASK6;TASK7;TASK8;TASK9;TASK3
-bim_element1;A15;XGTXKSAJDFLSDAFJ;;15.3.2021;19.3.2021;10;0.7;0;0;0;0;0;0;0
-bim_element3;A14;;;15.3.2021;20.3.2021;10;0.7;0.7;0.7;0.7;0.7;0;0;0
-bim_element5;A16;;;15.3.2021;20.3.2021;10;0.7;0;0;0;0;0.3;0;0
+bim_element1;A15;XGTXKSAJDFLSDAFJ;;23.10.2023;23.10.2023;10;0.7;0;0;0;0;0;0;0
+bim_element3;A14;;;24.10.2023;24.10.2023;10;0.7;0.7;0.7;0.7;0.7;0;0;0
+bim_element5;A16;;;23.10.2023;24.10.2023;10;0.7;0;0;0;0;0.3;0;0
+bim_element6;A17;;;24.10.2023;25.10.2023;10;0.7;0;0;0;0;0.3;0;0

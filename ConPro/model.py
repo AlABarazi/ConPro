@@ -155,6 +155,7 @@ class ConPro(mesa.Model):
     Agent-based simulation model for construction processes
     """
     #setup
+    simulation_speed_microsec = 150000000  # 1500000 1.5sec # 15000000 15 sec
     Scenario1 = {
         "n_furniture_workers": [3],
         "n_painting_workers": [0],
@@ -166,7 +167,6 @@ class ConPro(mesa.Model):
         "work_duration_max": [120],
         # "tasks_sequence" : [{1: ["KEYSTART"]}],
         # "tasks_sequence": [{1: ["TASK1", "TASK2"], 2: ['TASK3'], 3: ['TASK4']}],
-        "simulation_speed_microsec": [150000000],  # 1500000 1.5 sec   #15000000 15 sec
         "one_behavior_file": [True],
         "furniture_worker_skills": [
             {"TASK1": 4, "TASK2": 4, "TASK3": 4, "TASK3": 4, "TASK4": 4, "TASK5": 4, "TASK6": 4, "TASK7": 4, "TASK8": 4,
@@ -195,7 +195,7 @@ class ConPro(mesa.Model):
                   "t_at_workplace", "IntentionStartTime", "IntentionFullfilmentTime", "total_intentions", "t_at_site",
                   "selected_task_key", "bim_element_name", "is_idle", "status", "intention", "name", "duration", "finish", "start",
                   "start_datetime", "finish_datetime"],
-        Bim_element: ["hasStarted", "current_task_key", "current_trade", "name","start_date", "end_date", "actual_start", "actual_end"],
+        Bim_element: ["hasStarted", "current_task_key", "current_trade", "name","start_date", "end_date", "actual_start", "actual_end","bim_element_completed"],
         Zone:["n_visitors","n_workers","n_trades", "name"]}#,   ]}#, Bim_element: ["hasStarted", "current_task_key", "current_trade"], Zone:["get_current_trades"]} # "is_idle",  # ,
     read_behavior_from_pickle = True
     show_pdf_plots = False
@@ -355,13 +355,14 @@ class ConPro(mesa.Model):
         self,
         # new
         seed=random.randrange(4294967294),
-        simulation_speed_microsec=150000000,  # 1500000 1.5sec # 15000000 15 sec
         w_presence=1,  # will be considered working only when presence = 1 minute, Zhou threshold
         ips_file="init_IPSS",  # modify, IPS file for resources
         n_furniture_workers=1,
         n_painting_workers=1,
         project_startdate=datetime(2021, 12, 31, 7, 0, 0, 0),
-        simulation_startdate=datetime(2022, 5, 16, 6, 0, 0, 0),  # site B (2021, 10, 11), site A electrician 2022-05-16
+            simulation_startdate=datetime(2023, 10, 23, 6, 0, 0, 0),
+            # site B (2021, 10, 11), site A electrician 2022-05-16
+            # site B (2021, 10, 11), site A electrician 2022-05-16
         start_day=800,
         start_hour=6,
         workingday_minutes=510,
@@ -436,6 +437,7 @@ class ConPro(mesa.Model):
         behavior_files_dates=None,
         task_piking_strategy = "first" # "random", "closest", "one with minimal total work", "one with minimal varaity", "less congested"
     ):
+        self.laststep = 0 # to allow the simulation to run for some additioinal steps
         self.task_piking_strategy = task_piking_strategy
         self.break_zone_name = "s"
         self.current_floor = "5" # modify, current floor plan file
@@ -545,7 +547,7 @@ class ConPro(mesa.Model):
         self.this_date = str(simulation_startdate.year)+"-"+str(simulation_startdate.isocalendar()[1])+"-"+self.dayNumber_to_Text(simulation_startdate.weekday())
         self._seed = random.randrange(4294967294)
         np.random.seed(self._seed)## set numpy to have the same seed like the model        project_startdate = datetime(2021, 12, 31, 7, 0, 0, 0),
-        self.simulation_speed_microsec = simulation_speed_microsec  # 1500000 #1.5sec
+        # self.simulation_speed_microsec = simulation_speed_microsec  # 1500000 #1.5sec
         self.simulation_speed_sec = self.simulation_speed_microsec/1000000
         self.simulation_speed_min = self.simulation_speed_sec/60
         self.simulation_speed_h = self.simulation_speed_min / 24
@@ -1988,7 +1990,10 @@ class ConPro(mesa.Model):
             self.set_all_available_tasks()
             self.run_agent_step_bytype(Worker)
             self.run_agent_step_bytype(Zone)
-            self.running = False
+            if self.laststep == 0:
+                self.laststep = self.schedule.steps + 10 # allow for 10 more steps to run after all work completed
+            if self.schedule.steps >= self.laststep:
+                self.running = False
 
         # collect model level data
         # self.datacollector.collect(self)

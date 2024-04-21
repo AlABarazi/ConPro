@@ -101,7 +101,7 @@ def append_df(condition=False):
     project_path = file_path.parent
     li = []
     # print (file_path)
-    for file_name in glob.iglob("resultsOnetime/*/" + '*.xlsx', recursive=True):
+    for file_name in glob.iglob("resultsOnetime/*/" + '*.csv', recursive=True):
         #        print (file_name)
         if "model" in file_name:
             df = pd.read_excel(file_name, header=0)
@@ -109,10 +109,11 @@ def append_df(condition=False):
                 df = df[df["Trade"] == "plastering"]
             li.append(df)
     frame = pd.concat(li, axis=0, ignore_index=True)
-    filename = 'Results' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + '.xlsx'
+    filename = 'Results' + datetime.now().strftime("%m_%d_%Y_%H_%M_%S") + '.csv'
     current_directory = os.getcwd()
     final_directory = os.path.join(current_directory, "resultsOnetime", "Results", filename)
-    frame.to_excel(final_directory)
+    # frame.to_excel(final_directory)
+    frame.to_csv(final_directory)
 
 
 def delete_all_files_and_folders(directory):
@@ -148,7 +149,7 @@ def runner(variable_par_ls, iterations=1, max_steps=1000, number_processes=None,
     output_path = create_directory()
     filenamemodel = output_path + 'model_' + datetime.now().strftime("%m-%d%-Y_%H_%M_%S")
     results_filtered.to_pickle(output_path + "data.pkl")
-    results_filtered.to_excel(filenamemodel + ".xlsx")
+    results_filtered.to_csv(filenamemodel + ".csv")
     #    results_filtered = results_df[(results_df.AgentID == 0) & (results_df.Step == 100)]
     #    N_values = results_filtered.N.values
     #    gini_values = results_filtered.Gini.values
@@ -183,8 +184,18 @@ def main(iterations=10, max_steps=30000, variable_params=Scenario1, data_collect
     append_df(condition=False)
     print("Finished in: {:.2f}s".format((datetime.now() - start).total_seconds()))
 
+
+def minutes_to_steps(minutes, microsec_per_step):
+    micro_seconds = minutes * 60 * 1000000
+    steps = micro_seconds/microsec_per_step
+    return steps
+# microsec_per_step = ConPro.simulation_speed_microsec
+# minutes_to_steps(2, microsec_per_step)
+
+
 if __name__ == '__main__':
     # args = sys.argv[1:]
+
     delete_all_files = True
     if delete_all_files:
         delete_all_files_and_folders("resultsOnetime")
@@ -198,7 +209,7 @@ if __name__ == '__main__':
         freeze_support()
         # main(iterations=1, max_steps=1, variable_params=Scenarios1)
         # main(iterations=2, max_steps=10000, variable_params=Scenarios2, data_collection_period=3)
-        main(iterations=1, max_steps=1000000, variable_params=Scenario1, data_collection_period=1000000)
+        main(iterations=1, max_steps=1000, variable_params=Scenario1, data_collection_period=5)
 
     elif "results" in args[0]:
         append_df(condition=True)
