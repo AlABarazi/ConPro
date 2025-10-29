@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+title: "ConPro: Agent-Based Construction Process Simulator"
+version: "1.0"
+date-released: 2025-10-29
+authors:
+  - family-names: Barazi
+    given-names: Alaa
+    orcid: "https://orcid.org/0000-0000-0000-0000"  # optional
+license: "MIT"
+repository-code: "https://github.com/alaa-barazi/ConPro"
+doi: "10.5281/zenodo.YOUR_DOI_HERE"  # replace after Zenodo release
