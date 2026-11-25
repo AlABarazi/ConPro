@@ -17,15 +17,17 @@ utilization, idle time and task progress. It was published here in 2023 and is r
   [`pathfinding`](https://pypi.org/project/pathfinding/) library), so workers walk around walls, not through them.
 - **Tasks.** `init_tasks_comma.csv` lists the drywall elements with their zone, dates and work per stage (frames,
   mechanical, electrical, insulation, studs, painting, finishing). `init_zones.csv` is the zone grid.
-- **Worker behaviour.** `init_behavior_file.csv` holds coded site observations used for time spent in and out of
-  work areas.
+- **Worker behaviour.** `init_behavior_file.csv` gives each worker the zones it visits and how long it stays in each.
+  The file in this repository is a **made-up example** in the format of the original coded site-video observations,
+  so that the model runs. The original observations and the indoor-positioning data are not published.
 
 ## Known limits
 
 - Diagonal moves use `DiagonalMovement.always`, which lets a path cut between two wall cells that touch only at a
   corner. `DiagonalMovement.only_when_no_obstacle` would prevent that.
 - CSV rows run top-down and Mesa's grid bottom-up, so lookups flip y (`height - 1 - y`).
-- Written for Mesa before 2.0 (`ModularServer`, `UserSettableParameter`, `BatchRunnerMP`).
+- Needs Mesa 1.x (tested with Mesa 1.2.1 on Python 3.12). Mesa 2 changed the grid and visualization APIs, and the
+  model does not start under it.
 - No automated tests.
 
 ## Run
@@ -36,6 +38,9 @@ python run.py        # starts Mesa's browser visualization
 ```
 
 `run.py` also has single-run and batch-run modes (see the `__main__` block).
+
+The `multiple_tasks` branch holds the later version (BIM elements as agents, several floors, indoor-positioning
+input). It needs the positioning data to run, and that data is not public.
 
 ## Related publications
 

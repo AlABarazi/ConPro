@@ -1,0 +1,13 @@
+Video Identifier,Day,Video time stamp,Beginn,End,Duration,Activity Classification,Description,Within the surroundings/vicinity of installation area?,Wasteful activity,Prerequisite unfulfilled,Value Classification,Role of Filmed Participant,Profession,Participant,Project
+EXAMPLE_1,1.1.2000,0:00:00,7:00:00,7:04:00,0.04.00,Storage201,made-up example row,OUT,Unspecified,Unspecified,Non-Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:04:00,7:04:00,7:14:00,0.10.00,A4,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:14:00,7:14:00,7:15:30,0.01.30,Corridor,made-up example row,OUT,Unspecified,Unspecified,Non-Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:15:30,7:15:30,7:22:30,0.07.00,A4,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:22:30,7:22:30,7:25:00,0.02.30,Elevator,made-up example row,OUT,Unspecified,Unspecified,Value Supporting,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:25:00,7:25:00,7:37:00,0.12.00,A7,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:37:00,7:37:00,7:39:00,0.02.00,Staircase,made-up example row,OUT,Unspecified,Unspecified,Value Supporting,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:39:00,7:39:00,7:48:00,0.09.00,A6,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:48:00,7:48:00,7:53:00,0.05.00,Storage204,made-up example row,OUT,Unspecified,Unspecified,Non-Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,0:53:00,7:53:00,8:01:00,0.08.00,A8,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,1:01:00,8:01:00,8:07:00,0.06.00,A3,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
+EXAMPLE_1,1.1.2000,1:07:00,8:07:00,8:14:30,0.07.30,A5,made-up example row,IN,Unspecified,Unspecified,Value Adding,Installer,Plumber,P1,EXAMPLE
