@@ -1,5 +1,7 @@
-jupyter
-mesa
+mesa<2
 numpy
+pandas
 matplotlib
-networkx
+seaborn
+pathfinding
+jupyter
